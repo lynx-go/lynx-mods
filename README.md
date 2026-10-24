@@ -40,13 +40,20 @@ mise run dev                        # gRPC :9060 / HTTP :8080
 ## 仓库结构
 
 ```
-kernel/     契约库（module.go 装配协议 / errcode / contexts / events /
-            uow+buntx / crud / goosekit / testutil）
+kernel/     契约库（独立 Go module，semver）——v0.1.0 候选包清单：
+            module/assembly 装配协议与 DAG 校验 · errcode 错误码区段 ·
+            contexts 主体语境 · events 事件信封与发布端口 ·
+            uow+buntx 事务传播 · crud 分页方言（HMAC token + 时间游标）·
+            goosekit per-module 迁移隔离 · secretkey 主密钥 purpose 派生 ·
+            clock 时间源（Fake 注入）· idgen 随机 ID/前缀 ID ·
+            password argon2id 哈希 · jwt HS256 签发/验证（purpose 隔离）·
+            bunx 连接引导 + AIP-132 白名单排序 + 泛型列表执行 ·
+            configkit 配置段加载 · testutil 隔离测试库基座
 modules/    registry items：每模块是**真实 Go module**（自带 go.mod、
             genproto 与 buf 配置，在本仓内可编译、可测试、CI 覆盖）；
             lynx-start add 安装时改写导入路径为应用 module path（shadcn alias
             rewrite 的对应物），并排除 go.mod/genproto 等工程文件
-cli/        lynx-start 安装器（init / add / list；shadcn 语义：默认不覆盖、幂等）
+cli/        lynx-start 安装器（init / add / list；shadcn 语义：默认不覆盖、幂等；渲染与注入自动 gofmt）
 registry/   registry.json 模块索引
 scaffold/   lynx-start init 生成的应用骨架模板
 docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 六条契约）

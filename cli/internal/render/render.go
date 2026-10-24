@@ -4,6 +4,7 @@ package render
 
 import (
 	"fmt"
+	"go/format"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -87,6 +88,13 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 		content := []byte(buf.String())
 		if opts.Rewrite != nil {
 			content = opts.Rewrite(rel, content)
+		}
+		if strings.HasSuffix(rel, ".go") {
+			if formatted, err := format.Source(content); err == nil {
+				content = formatted
+			} else {
+				return fmt.Errorf("gofmt %s: %w", rel, err)
+			}
 		}
 		target := filepath.Join(dstDir, filepath.FromSlash(rel))
 		if _, statErr := os.Stat(target); statErr == nil && !opts.Overwrite {

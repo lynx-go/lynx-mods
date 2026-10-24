@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/lynx-go/lynx-start/kernel/secretkey"
 )
 
 const (
@@ -42,14 +44,12 @@ var pageTokenSecret atomic.Value // string
 var pageTokenMarshal = json.Marshal
 
 // InitPageTokenSigning 启用页 token 的 HMAC 签名与验签。master 为部署主密钥；
-// 实际密钥经 HMAC-SHA256(master, purpose) 派生，与其他用途隔离。
+// 实际密钥经 secretkey.Derive(master, purpose) 派生，与其他用途域隔离。
 func InitPageTokenSigning(master string) error {
-	if strings.TrimSpace(master) == "" {
-		return fmt.Errorf("page token signing requires a non-empty master secret")
+	if err := secretkey.MustValidate(master, "page token signing"); err != nil {
+		return err
 	}
-	mac := hmac.New(sha256.New, []byte(master))
-	_, _ = mac.Write([]byte(pageTokenKeyPurpose))
-	pageTokenSecret.Store(hex.EncodeToString(mac.Sum(nil)))
+	pageTokenSecret.Store(secretkey.DeriveHex(master, pageTokenKeyPurpose))
 	return nil
 }
 

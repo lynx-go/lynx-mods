@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"go/format"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,7 +157,11 @@ func injectModulesEntry(appDir, name, modulePath string) error {
 	if !strings.Contains(src, fmt.Sprintf("%q", modulePath+"/internal/api/"+name)) {
 		src = strings.Replace(src, importAnchor, imp+importAnchor, 1)
 	}
-	return os.WriteFile(path, []byte(src), 0o644)
+	formatted, ferr := format.Source([]byte(src))
+	if ferr != nil {
+		return fmt.Errorf("gofmt modules.go after injection: %w", ferr)
+	}
+	return os.WriteFile(path, formatted, 0o644)
 }
 
 // appendConfigFragment 在 configs/config.yaml 锚点后追加模块配置段（幂等）。
