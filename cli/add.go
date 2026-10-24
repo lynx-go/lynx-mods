@@ -45,6 +45,12 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
+	// go.mod 必须先在（init 生成；手建应用需先 go mod init）——否则后面
+	// go mod tidy 报「cannot find main module」，与 genproto 缺失的报错
+	// 一样难以归因，这里提前给出可行动的错误。
+	if _, statErr := os.Stat(filepath.Join(appDir, "go.mod")); statErr != nil {
+		return fmt.Errorf("应用缺少 go.mod：lynx-start init 生成的应用已自带；手动创建的应用请先 go mod init %s", m.ModulePath)
+	}
 	if *registryDir == "" {
 		*registryDir = m.Registry // 清单里记的仓库目录兜底
 	}
@@ -129,11 +135,12 @@ func cmdAdd(args []string) error {
 	if len(res.Skipped) > 0 && !overwriteAny {
 		fmt.Println("  注意：存在已跳过的同名文件（本地修改保护）；要覆盖用 -o")
 	}
-	fmt.Printf(`下一步：
+	fmt.Printf(`下一步（顺序重要：genproto 未生成时 go mod tidy 必失败）：
+  mise install && mise trust   # 工具链（go / buf；已初始化的应用可跳过）
+  mise run generate            # buf 生成 genproto/
   go mod tidy%s
-  mise run generate     # buf 生成 genproto/
-  mise run db:migrate   # 模块迁移链（独立版本表）
-  mise run dev
+  mise run db:up && mise run db:migrate
+  mise run dev                 # gRPC :9060 / HTTP :8080
 `, goGetHint(item))
 	return nil
 }

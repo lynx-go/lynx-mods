@@ -77,7 +77,7 @@ WORK2="$(mktemp -d)"
   && ! "$WORK/lyx" add session --registry "$ROOT" >/dev/null 2>&1) \
   || { echo "dependency check failed"; exit 1; }
 rm -rf "$WORK2"
-go mod init example.com/e2eapp >/dev/null
+# init 已生成 go.mod；-replace 钉住本仓 kernel（tag 未推送时也能跑）
 go mod edit -replace github.com/lynx-go/lynx-start/kernel="$ROOT/kernel"
 buf dep update >/dev/null
 buf lint

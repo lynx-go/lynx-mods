@@ -4,6 +4,9 @@
 //	go run ./cmd/migrate -dsn <postgres-dsn>                 # 全部模块 up
 //	go run ./cmd/migrate -dsn <dsn> -module demo             # 单模块 up
 //	go run ./cmd/migrate -dsn <dsn> -down 1 -module demo     # demo 回退 1 个
+//
+// DSN 解析顺序：-dsn 旗标 > 环境变量 {{.EnvPrefix}}_DATA_DATABASE_SOURCE >
+// configs/config.yaml 的同款缺省（init 生成期烘入，与配置文件同源）。
 package main
 
 import (
@@ -19,8 +22,13 @@ import (
 	"{{.ModulePath}}/internal/modules"
 )
 
+// defaultDSN 与 configs/config.yaml 的 data.database.source 缺省同款
+//（模板变量 {{.DefaultDSN}}）。改了 config.yaml 的 DSN 后，用环境变量
+// 或 -dsn 覆盖，或同步改这里。
+const defaultDSN = "{{.DefaultDSN}}"
+
 func main() {
-	dsn := flag.String("dsn", os.Getenv("{{.EnvPrefix}}_DATA_DATABASE_SOURCE"), "Postgres DSN（默认取 {{.EnvPrefix}}_DATA_DATABASE_SOURCE）")
+	dsn := flag.String("dsn", firstNonEmpty(os.Getenv("{{.EnvPrefix}}_DATA_DATABASE_SOURCE"), defaultDSN), "Postgres DSN（环境变量 {{.EnvPrefix}}_DATA_DATABASE_SOURCE 优先，缺省 config.yaml 同款）")
 	module := flag.String("module", "", "只处理指定模块（空=全部）")
 	down := flag.Int("down", 0, "回退最近 N 个迁移（默认 0=执行 up）")
 	flag.Parse()
@@ -62,4 +70,13 @@ func main() {
 func fatal(v any) {
 	fmt.Fprintln(os.Stderr, "migrate:", v)
 	os.Exit(1)
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

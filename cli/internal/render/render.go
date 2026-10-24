@@ -20,15 +20,20 @@ type Data struct {
 	// DBName 是数据库/用户名形态的应用名（中划线转下划线）——
 	// Postgres 标识符不允许中划线。
 	DBName string
+	// DefaultDSN 是 configs/config.yaml 缺省 DSN 的同款值——cmd/migrate
+	// 的旗标缺省用它兜底（与配置文件出自同一数据源，不会漂移）。
+	DefaultDSN string
 }
 
 // NewData 从应用名与 module path 构造渲染变量。
 func NewData(appName, modulePath string) Data {
+	dbName := strings.ReplaceAll(appName, "-", "_")
 	return Data{
 		AppName:    appName,
 		ModulePath: modulePath,
 		EnvPrefix:  strings.ToUpper(strings.ReplaceAll(appName, "-", "_")),
-		DBName:     strings.ReplaceAll(appName, "-", "_"),
+		DBName:     dbName,
+		DefaultDSN: fmt.Sprintf("postgres://%s:%s@127.0.0.1:5432/%s?sslmode=disable", dbName, dbName, dbName),
 	}
 }
 
