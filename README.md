@@ -1,5 +1,7 @@
 # lynx-start
 
+[![CI](https://github.com/lynx-go/lynx-start/actions/workflows/ci.yml/badge.svg)](https://github.com/lynx-go/lynx-start/actions/workflows/ci.yml)
+
 **lynx 生态的 shadcn 式模块基建**：Kernel 契约库 + 源码模块 registry + 安装 CLI。
 为任何基于 lynx 的 Go 后端应用提供按需安装的业务域源码——安装后代码归你所有，
 随便改。
