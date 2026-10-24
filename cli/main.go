@@ -1,8 +1,8 @@
-// lyx 是 lynx-start 的模块安装器（shadcn 语义）：
+// lynx-start 是模块安装器 CLI（shadcn 语义）：
 //
-//	lyx init <name>            从 scaffold 生成应用骨架
-//	lyx add <module>           安装模块源码到当前应用
-//	lyx list                   列出 registry 中的模块
+//	lynx-start init <name>            从 scaffold 生成应用骨架
+//	lynx-start add <module>           安装模块源码到当前应用
+//	lynx-start list                   列出 registry 中的模块
 //
 // 安装默认不覆盖已存在文件（-o 强制；--dry-run 预览）；更新=源码迁移，
 // 靠 git 流程管理（shadcn 同款取舍）。
@@ -29,20 +29,20 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 	default:
-		fmt.Fprintf(os.Stderr, "lyx: 未知命令 %q\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "lynx-start: 未知命令 %q\n", os.Args[1])
 		usage()
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "lyx:", err)
+		fmt.Fprintln(os.Stderr, "lynx-start:", err)
 		os.Exit(1)
 	}
 }
 
 func usage() {
 	fmt.Fprint(os.Stderr, `用法:
-  lyx init <name> [--module <path>] [--registry <dir>] [--force]
-  lyx add <module> [--registry <dir>] [-o|--overwrite] [--dry-run]
-  lyx list [--registry <dir>]
+  lynx-start init <name> [--module <path>] [--registry <dir>] [--force]
+  lynx-start add <module> [--registry <dir>] [-o|--overwrite] [--dry-run]
+  lynx-start list [--registry <dir>]
 `)
 }

@@ -15,12 +15,12 @@ import (
 
 // 注入锚点（与 scaffold/internal/modules/modules.go、configs/config.yaml 模板一致）。
 const (
-	importAnchor = "// lyx:module-import（lyx add 注入锚点，勿删）"
-	entryAnchor  = "// lyx:module-entry（lyx add 注入锚点，勿删）"
-	configAnchor = "# lyx:config-fragment（lyx add 追加模块配置段的锚点，勿删）"
+	importAnchor = "// lynx-start:module-import（lynx-start add 注入锚点，勿删）"
+	entryAnchor  = "// lynx-start:module-entry（lynx-start add 注入锚点，勿删）"
+	configAnchor = "# lynx-start:config-fragment（lynx-start add 追加模块配置段的锚点，勿删）"
 )
 
-// cmdAdd: lyx add <module> —— 安装模块源码到当前应用。
+// cmdAdd: lynx-start add <module> —— 安装模块源码到当前应用。
 func cmdAdd(args []string) error {
 	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	registryDir := fs.String("registry", os.Getenv("LYXSTART_REGISTRY"), "lynx-start 仓库目录")
@@ -33,7 +33,7 @@ func cmdAdd(args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("用法: lyx add <module> [-o] [--dry-run] [--registry <dir>]")
+		return fmt.Errorf("用法: lynx-start add <module> [-o] [--dry-run] [--registry <dir>]")
 	}
 	name := fs.Arg(0)
 	appDir, err := filepath.Abs(*dir)
@@ -59,7 +59,7 @@ func cmdAdd(args []string) error {
 	// 模块依赖（domain 级 DAG）必须已装。
 	for _, dep := range item.ModuleDependencies {
 		if !m.Has(dep) {
-			return fmt.Errorf("模块 %s 依赖 %s：请先 lyx add %s", name, dep, dep)
+			return fmt.Errorf("模块 %s 依赖 %s：请先 lynx-start add %s", name, dep, dep)
 		}
 	}
 	already := m.Has(name)
@@ -137,7 +137,7 @@ func injectModulesEntry(appDir, name, modulePath string) error {
 	path := filepath.Join(appDir, "internal", "modules", "modules.go")
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("读取 modules.go（lyx init 生成物）: %w", err)
+		return fmt.Errorf("读取 modules.go（lynx-start init 生成物）: %w", err)
 	}
 	src := string(raw)
 	if strings.Contains(src, name+".Module()") {

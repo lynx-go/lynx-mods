@@ -7,4 +7,4 @@ data:
     source: "postgres://{{.DBName}}:{{.DBName}}@127.0.0.1:5432/{{.DBName}}?sslmode=disable"
     max_open_conns: 8
 
-# lyx:config-fragment（lyx add 追加模块配置段的锚点，勿删）
+# lynx-start:config-fragment（lynx-start add 追加模块配置段的锚点，勿删）

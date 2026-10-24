@@ -22,12 +22,12 @@ shadcn/ui 是参照系：Radix 是库、组件是源码、registry 是分发协�
 
 ```bash
 # 构建 CLI
-cd cli && go build -o /usr/local/bin/lyx .
+cd cli && go build -o /usr/local/bin/lynx-start .
 
 # 生成应用骨架 + 安装模块
-lyx init myapp --module github.com/acme/myapp --registry <本仓库目录>
+lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
-lyx add demo --registry <本仓库目录>
+lynx-start add demo --registry <本仓库目录>
 
 # 跑起来（mise：go/buf 钉版）
 mise install && mise trust
@@ -44,11 +44,11 @@ kernel/     契约库（module.go 装配协议 / errcode / contexts / events /
             uow+buntx / crud / goosekit / testutil）
 modules/    registry items：每模块是**真实 Go module**（自带 go.mod、
             genproto 与 buf 配置，在本仓内可编译、可测试、CI 覆盖）；
-            lyx add 安装时改写导入路径为应用 module path（shadcn alias
+            lynx-start add 安装时改写导入路径为应用 module path（shadcn alias
             rewrite 的对应物），并排除 go.mod/genproto 等工程文件
-cli/        lyx 安装器（init / add / list；shadcn 语义：默认不覆盖、幂等）
+cli/        lynx-start 安装器（init / add / list；shadcn 语义：默认不覆盖、幂等）
 registry/   registry.json 模块索引
-scaffold/   lyx init 生成的应用骨架模板
+scaffold/   lynx-start init 生成的应用骨架模板
 docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 六条契约）
 GLOSSARY.md 统一语言
 ```
@@ -75,7 +75,7 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 ## Roadmap
 
-- `lyx update`（diff 语义）/ `lyx doctor`（契约校验：import guard / 迁移状态 / DAG）
+- `lynx-start update`（diff 语义）/ `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
 - 远端 registry（git tag 版本 pin）
 - 首批真实业务模块（identity/access/audit…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 

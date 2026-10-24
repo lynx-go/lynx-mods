@@ -32,7 +32,7 @@ func Load(dir string) (*Manifest, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, FileName))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s 不存在：请先在应用目录执行 lyx init", FileName)
+			return nil, fmt.Errorf("%s 不存在：请先在应用目录执行 lynx-start init", FileName)
 		}
 		return nil, err
 	}

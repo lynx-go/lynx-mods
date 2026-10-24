@@ -11,7 +11,7 @@ import (
 	"github.com/lynx-go/lynx-start/cli/internal/render"
 )
 
-// cmdInit: lyx init <name> —— 从 scaffold 生成应用骨架。
+// cmdInit: lynx-start init <name> —— 从 scaffold 生成应用骨架。
 func cmdInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	module := fs.String("module", "", "Go module path（默认 example.com/<name>）")
@@ -22,7 +22,7 @@ func cmdInit(args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("用法: lyx init <name> [--module <path>] [--registry <dir>]")
+		return fmt.Errorf("用法: lynx-start init <name> [--module <path>] [--registry <dir>]")
 	}
 	appName := fs.Arg(0)
 	if *registryDir == "" {
@@ -62,14 +62,14 @@ func cmdInit(args []string) error {
 	fmt.Printf("\n✓ 应用骨架就绪：%s（%d 个文件，跳过 %d）\n", target, len(res.Created), len(res.Skipped))
 	fmt.Printf(`下一步：
   cd %s
-  git init && git add -A && git commit -m "chore: lyx init"
+  git init && git add -A && git commit -m "chore: lynx-start init"
   go mod tidy && go get github.com/lynx-go/lynx-start/kernel@v0.1.0
-  lyx add <module> --registry %s
+  lynx-start add <module> --registry %s
 `, target, *registryDir)
 	return nil
 }
 
-// cmdList: lyx list —— 列出 registry 模块。
+// cmdList: lynx-start list —— 列出 registry 模块。
 func cmdList(args []string) error {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	registryDir := fs.String("registry", os.Getenv("LYXSTART_REGISTRY"), "lynx-start 仓库目录")

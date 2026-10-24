@@ -24,7 +24,7 @@ type Item struct {
 	Version     string `json:"version"`
 	Description string `json:"description"`
 	// ModulePath 是模块源码的规范 Go module path（模块在本仓内以真实代码
-	// 形态维护，自带 go.mod 与 genproto）；安装时 lyx add 把 .go/.proto 中
+	// 形态维护，自带 go.mod 与 genproto）；安装时 lynx-start add 把 .go/.proto 中
 	// 的该路径改写为应用 module path。
 	ModulePath         string   `json:"modulePath"`
 	ModuleDependencies []string `json:"moduleDependencies"`
@@ -47,7 +47,7 @@ func (i *Item) CanonicalModulePath() string {
 func Load(registryDir string) (*Index, error) {
 	raw, err := os.ReadFile(filepath.Join(registryDir, "registry", "registry.json"))
 	if err != nil {
-		return nil, fmt.Errorf("读取 registry：lyx init/add 需要 --registry 指向 lynx-start 仓库目录（含 registry/registry.json）: %w", err)
+		return nil, fmt.Errorf("读取 registry：lynx-start init/add 需要 --registry 指向 lynx-start 仓库目录（含 registry/registry.json）: %w", err)
 	}
 	var idx Index
 	if err := json.Unmarshal(raw, &idx); err != nil {
@@ -77,5 +77,5 @@ func (idx *Index) Item(registryDir, name string) (*Item, error) {
 		}
 		return &item, nil
 	}
-	return nil, fmt.Errorf("registry 中不存在模块 %q（lyx list 查看）", name)
+	return nil, fmt.Errorf("registry 中不存在模块 %q（lynx-start list 查看）", name)
 }
