@@ -29,7 +29,7 @@ func main() {
 	case "help", "-h", "--help":
 		usage()
 	default:
-		fmt.Fprintf(os.Stderr, "lynx-start: 未知命令 %q\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "lynx-start: unknown command %q\n", os.Args[1])
 		usage()
 		os.Exit(2)
 	}
@@ -40,7 +40,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `用法:
+	fmt.Fprint(os.Stderr, `Usage:
   lynx-start init <name> [--module <path>] [--registry <dir>] [--force]
   lynx-start add <module> [--registry <dir>] [-o|--overwrite] [--dry-run]
   lynx-start list [--registry <dir>]

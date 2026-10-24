@@ -113,7 +113,7 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 		target := filepath.Join(dstDir, filepath.FromSlash(rel))
 		if _, statErr := os.Stat(target); statErr == nil && !opts.Overwrite {
 			res.Skipped = append(res.Skipped, rel)
-			report("skip   %s（已存在，-o 覆盖）", rel)
+			report("skip   %s (exists, -o to overwrite)", rel)
 			return nil
 		}
 		if opts.DryRun {

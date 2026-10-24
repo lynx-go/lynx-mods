@@ -47,7 +47,7 @@ func (i *Item) CanonicalModulePath() string {
 func Load(registryDir string) (*Index, error) {
 	raw, err := os.ReadFile(filepath.Join(registryDir, "registry", "registry.json"))
 	if err != nil {
-		return nil, fmt.Errorf("读取 registry：lynx-start init/add 需要 --registry 指向 lynx-start 仓库目录（含 registry/registry.json）: %w", err)
+		return nil, fmt.Errorf("load registry: lynx-start init/add need --registry pointing at the lynx-start repo directory (containing registry/registry.json): %w", err)
 	}
 	var idx Index
 	if err := json.Unmarshal(raw, &idx); err != nil {
@@ -65,7 +65,7 @@ func (idx *Index) Item(registryDir, name string) (*Item, error) {
 		dir := filepath.Join(registryDir, it.Path)
 		raw, err := os.ReadFile(filepath.Join(dir, "item.json"))
 		if err != nil {
-			return nil, fmt.Errorf("读取 %s/item.json: %w", it.Path, err)
+			return nil, fmt.Errorf("read %s/item.json: %w", it.Path, err)
 		}
 		var item Item
 		if err := json.Unmarshal(raw, &item); err != nil {
@@ -77,5 +77,5 @@ func (idx *Index) Item(registryDir, name string) (*Item, error) {
 		}
 		return &item, nil
 	}
-	return nil, fmt.Errorf("registry 中不存在模块 %q（lynx-start list 查看）", name)
+	return nil, fmt.Errorf("module %q not found in registry (see lynx-start list)", name)
 }

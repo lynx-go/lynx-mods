@@ -32,13 +32,13 @@ func Load(dir string) (*Manifest, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, FileName))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s 不存在：请先在应用目录执行 lynx-start init", FileName)
+			return nil, fmt.Errorf("%s not found: run lynx-start init in the app directory first", FileName)
 		}
 		return nil, err
 	}
 	var m Manifest
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, fmt.Errorf("解析 %s: %w", FileName, err)
+		return nil, fmt.Errorf("parse %s: %w", FileName, err)
 	}
 	return &m, nil
 }
