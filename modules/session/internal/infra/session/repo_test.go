@@ -48,7 +48,9 @@ func TestRepo(t *testing.T) {
 
 	t.Run("rotate whitelist", func(t *testing.T) {
 		s, _ := repo.Get(ctx, "s1")
-		s.Rotate("jti-1b", t0.Add(time.Minute))
+		if err := s.Rotate("jti-1b", t0.Add(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
 		if err := repo.Rotate(ctx, s); err != nil {
 			t.Fatal(err)
 		}
