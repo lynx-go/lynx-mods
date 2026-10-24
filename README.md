@@ -32,6 +32,7 @@ cd myapp
 lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
 lynx-start add identity --registry <本仓库目录>   # 身份：注册/登录/改密 + Bearer 认证器
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
+lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
 
 # 跑起来（mise：go/buf 钉版）
 mise install && mise trust
@@ -71,6 +72,7 @@ GLOSSARY.md 统一语言
 | `demo` | 0.1.0 | 单实体 CRUD 样例，验证装配管线（不承载业务语义） |
 | `identity` | 0.1.0 | 注册/登录（Argon2id 口令散列 + HS256 JWT，purpose 域隔离）/自助改密；向应用贡献 Bearer 认证器——安装后未声明 `anonymous` 的方法自动要求认证。事件目录：`identity.user.created` / `identity.user.password-changed`。安全边界：令牌无吊销（TTL 默认 30m，停用即时生效需每请求回读）；生产部署必须更换 `identity.secret`（Assemble 对开发默认密钥打警告） |
 | `session` | 0.1.0 | **依赖 identity**（首个跨模块依赖，安装器校验 DAG）。把 identity 的无状态令牌升级为可吊销会话：CreateSession（principal 驱动）→ 访问(15m)+刷新(30d)令牌对；Refresh 轮换刷新令牌（旧 jti 重放即吊销整个会话）；Logout/LogoutAll；订阅 `identity.user.password-changed` 自动全局吊销。访问令牌与 identity 令牌在认证链共存 |
+| `access` | 0.1.0 | **依赖 identity**。RBAC：角色目录在配置段声明（`access.roles`，可审计），分配事实落库（幂等 Grant/Revoke）；**Enricher 在认证后注入 roles/permissions claims**——任何模块的方法可在 proto 里声明 `permissions:[...]`（MATCH_ALL）或 `roles:[...]`（MATCH_ANY），与令牌来源无关；bootstrap 管理员邮箱启动期收敛。管理 API 需 `access.assignment.write` 权限 |
 
 > 模块必须是真实可编译代码：kernel 的任何破坏性变更都会在本仓
 > `go build ./...` 立即暴露，而不是等到某个应用安装时才炸。这是

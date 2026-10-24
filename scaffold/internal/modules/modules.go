@@ -4,7 +4,6 @@ package modules
 
 import (
 	"github.com/lynx-go/lynx-start/kernel"
-
 	// lynx-start:module-import（lynx-start add 注入锚点，勿删）
 )
 

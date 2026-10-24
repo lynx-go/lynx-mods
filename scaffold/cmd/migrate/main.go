@@ -15,8 +15,8 @@ import (
 
 	"github.com/lynx-go/lynx-start/kernel"
 	"github.com/lynx-go/lynx-start/kernel/goosekit"
-	"{{.ModulePath}}/internal/modules"
 	"github.com/uptrace/bun/driver/pgdriver"
+	"{{.ModulePath}}/internal/modules"
 )
 
 func main() {

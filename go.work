@@ -3,6 +3,7 @@ go 1.26.8
 use (
 	./cli
 	./kernel
+	./modules/access
 	./modules/demo
 	./modules/identity
 	./modules/session

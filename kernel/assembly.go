@@ -41,6 +41,10 @@ type Assembly struct {
 	Tasks []schedule.Task
 	// Authenticators 是模块贡献的认证器（如 session/apikey 模块）。
 	Authenticators []authn.Authenticator
+	// Enrichers 是模块贡献的认证后增强器（如 access 模块往 Principal
+	// 注入 roles/permissions claims——proto 策略的 permissions/roles
+	// 声明由此生效）。
+	Enrichers []authn.Enricher
 	// Stages 是模块贡献的拦截器槽位（audit=50/ratelimit=40/usage=60）。
 	Stages []interceptor.Stage
 	// ExtraRoutes 是模块的手写 HTTP 路由。
@@ -62,6 +66,7 @@ type Aggregated struct {
 	Services       []lynx.Service
 	Tasks          []schedule.Task
 	Authenticators []authn.Authenticator
+	Enrichers      []authn.Enricher
 	Stages         []interceptor.Stage
 	ExtraRoutes    []server.ExtraRoute
 }
@@ -90,6 +95,7 @@ func AssembleAll(deps Deps, mods []InstalledModule) (*Aggregated, error) {
 		agg.Services = append(agg.Services, a.Services...)
 		agg.Tasks = append(agg.Tasks, a.Tasks...)
 		agg.Authenticators = append(agg.Authenticators, a.Authenticators...)
+		agg.Enrichers = append(agg.Enrichers, a.Enrichers...)
 		agg.Stages = append(agg.Stages, a.Stages...)
 		agg.ExtraRoutes = append(agg.ExtraRoutes, a.ExtraRoutes...)
 	}
