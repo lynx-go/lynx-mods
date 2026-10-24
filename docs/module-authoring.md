@@ -1,0 +1,244 @@
+# 模块编写指南
+
+面向两类读者：
+
+- **应用开发者**——装了几个 registry 模块之后，要写自己的业务域；
+- **模块贡献者**——想把一个业务域发布回本 registry。
+
+两种姿势共用同一套结构与契约，差别只在最后一节（是否走 `lynx-start add` 分发）。
+通读约 15 分钟；对照 `modules/demo`（466 行，最小完整样例）与
+`modules/identity`（带认证器与配置段）阅读最佳。
+
+---
+
+## 0. 先记住三条
+
+1. **源码归你**。模块装进应用后就是你的代码——改字段、换仓储、删方法都不需要
+   任何人的许可，编译器兜底。本指南讲的是「按什么结构写，才能享受契约保护」，
+   而不是「必须怎么写」。
+2. **模块间只许 domain 级依赖**。跨模块 import 只允许对方的
+   `domain/<name>` 包；app/infra/api 互引直接编不过（目录布局强制），
+   编译器就是架构护栏。
+3. **六条契约**（ADR-0004）速查：
+
+   | # | 契约 | 落点 |
+   |---|---|---|
+   | 1 | 分层归属 | `domain/<m>` + `internal/{app,api,infra}/<m>` + `proto/<m>/v1` |
+   | 2 | 模块间仅 domain 级 DAG | `kernel.Module.DependsOn` 声明，启动期校验 |
+   | 3 | 配置自治 | 自有 Config struct + `configkit.LoadSection` |
+   | 4 | 迁移隔离 | 独立 goose 版本表 `goose_<m>_db`，禁跨模块外键 |
+   | 5 | 错误码区段 | `errcode.MustRegister("<m>")` |
+   | 6 | Kernel 无租户预设 | 多租户是未来横切模块，不进 kernel |
+
+## 1. 模块解剖
+
+```
+<app>/
+├── domain/<m>/            # 对外契约面：聚合、不变量、仓储端口、哨兵错误、事件名常量
+│   ├── item.go            #   聚合 + NewItem/Rename（不变量在构造/方法里）
+│   ├── repo.go            #   Repository 接口（端口；签名不得出现驱动类型）
+│   └── guard_test.go      #   import 护栏：断言本包不 import infra/app/api
+├── internal/
+│   ├── app/<m>/           # 用例层：编排领域与端口（事务/事件/仓储），无 HTTP/gRPC 概念
+│   ├── api/<m>/           # API 层：proto 生成的 Service 实现（薄转发）+ Module()/Assemble()
+│   └── infra/<m>/         # 基础设施：bun 仓储实现 + migrations/（embed.FS）
+└── proto/<m>/v1/<m>.proto # API 契约：google.api.http 路由 + grpcapi policy 注解
+```
+
+依赖方向恒定：`api → app → domain ← infra`。装配在 `internal/api/<m>/module.go`。
+
+## 2. 动手：写一个 `todo` 模块（应用内私有）
+
+以下步骤在**你的应用仓库**里做；每步给出 demo 模块对应文件，直接对照抄。
+
+### 第 1 步：domain——聚合、错误、仓储端口
+
+```
+domain/todo/task.go   # 聚合 Task + NewTask/Complete（不变量在此）
+domain/todo/repo.go   # type Repository interface { Create/Get/List/Update... }
+```
+
+要点（对照 `modules/demo/domain/demo/item.go`）：
+
+```go
+var space = errcode.MustRegister("todo")          // 契约⑤：区段名=模块名
+
+var (
+    ErrTaskNotFound = space.New("TASK_NOT_FOUND", "todo task not found")
+    ErrEmptyTitle   = space.New("EMPTY_TITLE", "title must not be empty")
+)
+```
+
+哨兵错误由 app 层转 `grpc/status`（携带 ErrorInfo）；仓储接口方法一律接收
+`context.Context`——infra 适配器从 ctx 取事务连接（`kernel/uow/buntx`）。
+
+### 第 2 步：infra——bun 仓储 + 迁移
+
+```
+internal/infra/todo/repo.go                      # 实现 domain/todo.Repository
+internal/infra/todo/migrations/00001_init.sql    # CREATE TABLE ...（goose 格式）
+internal/infra/todo/migrations/embed.go          # //go:embed *.sql → var FS embed.FS
+```
+
+表名约定 `<module>_<entity>`；**不写跨模块外键**（契约④）。Update 用显式列
+白名单（见 `modules/demo/internal/infra/demo/repo.go`）。迁移链被 goosekit
+以独立版本表执行，回滚不牵连别的模块。
+
+### 第 3 步：app——用例编排
+
+```
+internal/app/todo/todo.go    # type UseCase struct{repo, tx, events, now}
+```
+
+对照 `modules/demo/internal/app/demo/demo.go`：写操作包在
+`u.tx.Run(ctx, func(ctx) error { ... })` 里，仓储与事件发布共享同一事务；
+事件用 `events.Envelope{Name, Module, Payload}`，事件名全局唯一约定
+`<module>.<entity>.<verb>`（如 `todo.task.created`）。
+
+### 第 4 步：proto——API 契约与策略声明
+
+```
+proto/todo/v1/todo.proto
+```
+
+对照 `modules/demo/proto/demo/v1/demo.proto`：
+
+```proto
+import "google/api/annotations.proto";
+import "grpcapi/v1/policy.proto";
+
+option (grpcapi.v1.api) = { api: "public", default_exposure: EXPOSURE_PUBLIC };
+
+service TodoService {
+  // 默认要求认证（装了 identity 后即 Bearer）；公开方法显式声明：
+  option (grpcapi.v1.service) = { default_policy: { anonymous: true } };
+
+  rpc CreateTask(CreateTaskRequest) returns (Task) {
+    option (google.api.http) = { post: "/v1/tasks" body: "*" };
+  }
+}
+```
+
+策略注解速查（完整语义见 `scaffold/proto/grpcapi/v1/policy.proto`）：
+
+- `anonymous: true`——方法公开；
+- `permissions: [...]`（MATCH_ALL）/ `roles: [...]`（MATCH_ANY）——装了
+  access 模块后生效（Enricher 注入 claims 后比对）；
+- 未声明 `anonymous` 的方法在装有认证器时**自动要求认证**（fail-closed）。
+
+### 第 5 步：api——Service 实现 + 装配
+
+```
+internal/api/todo/service.go   # 薄转发：参数校验交给 protovalidate，业务在用例层
+internal/api/todo/module.go    # Module() + Assemble()
+```
+
+`module.go` 的骨架（对照 `modules/demo/internal/api/demo/module.go`，安装时
+import 已改写为你的应用路径）：
+
+```go
+func Module() kernel.Module {
+    return kernel.Module{
+        Name:        "todo",
+        Description: "待办任务",
+        Policies:    []protoreflect.FileDescriptor{todov1.File_todo_v1_todo_proto},
+        Migrations:  migrations.FS,
+        // DependsOn: []string{"identity"},   // 仅当 domain 层 import 了 identity 的 domain 包
+    }
+}
+
+func Assemble(deps kernel.Deps) (kernel.Assembly, error) {
+    uc := apptodo.New(infratodo.NewRepository(deps.DB), deps.Tx, deps.Events)
+    return kernel.Assembly{
+        Registrations: []server.Registration{newRegistration(NewService(uc))},
+    }, nil
+}
+```
+
+需要配置段时（对照 identity）：在 app 层定义 Config struct + `ApplyDefaults`，
+Assemble 里 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg)`，
+并把片段手写进 `configs/config.yaml`（registry 模块由安装器经 item.json 的
+`configFragment` 自动追加）。
+
+### 第 6 步：生成代码
+
+```bash
+mise run generate    # buf dep update + lint + generate → genproto/todo/v1/
+go mod tidy
+```
+
+### 第 7 步：登记
+
+`internal/modules/modules.go` 的 `Installed` 列表追加（锚点内）：
+
+```go
+import todo "<app-module-path>/internal/api/todo"
+// ...
+{Module: todo.Module(), Assemble: todo.Assemble},
+```
+
+然后 `mise run db:migrate && mise run dev`。新方法的 HTTP 路由、认证要求、
+权限声明全部由 proto 注解驱动，无需改 main.go——那是骨架的稳定部分，
+模块增减只动 modules.go。
+
+## 3. 装配贡献面速查
+
+| 贡献 | 静态（`Module()`） | 动态（`Assemble()`→`Assembly`） | 实例 |
+|---|---|---|---|
+| gRPC/HTTP 服务 | — | `Registrations` | demo |
+| 策略描述符 | `Policies` | — | 全部 |
+| 迁移链 | `Migrations` | — | 全部 |
+| 事件订阅/后台服务 | — | `Services` | session（订阅改密事件） |
+| 定时任务 | — | `Tasks` | — |
+| 认证器 | — | `Authenticators` | identity（Bearer） |
+| 认证后增强 | — | `Enrichers` | access（roles/permissions claims） |
+| 拦截器槽位 | — | `Stages`（audit=50/ratelimit=40/usage=60） | — |
+| 手写 HTTP 路由 | `ExtraRoutes` | `ExtraRoutes` | — |
+| 依赖声明 | `DependsOn` | — | session→identity |
+
+`Assemble` 收到的 `kernel.Deps`：`DB`（bun）、`Tx`（uow）、`Events`（发布端口）、
+`Bus`（订阅侧）、`Config`、`Logger`。依赖显式、无生成式 DI。
+
+## 4. 发布到 registry（模块贡献者）
+
+把模块放进本仓 `modules/<name>/` 并让它成为**真实 Go module**：
+
+1. 自带 `go.mod`（module path 形如
+   `github.com/lynx-go/lynx-start/modules/<name>`）、`buf.yaml`/`buf.gen.yaml`，
+   genproto 入库——在本仓可编译、可测试，kernel 破坏性变更在本仓 CI 立即暴露，
+   而不是等到某个应用安装时才炸；
+2. 写 `item.json`：
+
+   ```json
+   {
+     "name": "todo",
+     "version": "0.1.0",
+     "description": "待办任务",
+     "modulePath": "github.com/lynx-go/lynx-start/modules/todo",
+     "moduleDependencies": [],
+     "goDependencies": [],
+     "configFragment": "todo:\n  default_page_size: 50\n",
+     "publishedEvents": ["todo.task.created"]
+   }
+   ```
+
+   - `moduleDependencies`：安装器据此校验 DAG 并改写依赖方 import；
+   - `goDependencies`：安装后需手动 `go get` 的第三方库；
+   - `configFragment`：追加进应用 config.yaml 的段（YAML 文本）；
+3. 在 `registry/registry.json` 的 `items` 里登记 `{ "name", "path" }`；
+4. 加入根 `go.work`，`mise run lint && mise run test` 全绿后提交。
+   版本语义：破坏性变更升 minor 前缀（0.x 阶段），`lynx-start update`
+   （diff 语义）落地前，应用侧更新=git 三方合并源码。
+
+## 5. 常见改动配方（改已装模块）
+
+| 想要 | 动哪里 |
+|---|---|
+| 加字段 | proto message → `mise run generate` → 新迁移加列 → domain 聚合与 repo 白名单列 |
+| 加方法 | proto service + http 注解 → generate → api Service 实现 → app 用例 |
+| 改配置默认值 | app 层 `Config.ApplyDefaults` + 应用 config.yaml 对应段 |
+| 订阅别模块事件 | Assemble 里经 `deps.Bus` 订阅（对照 session 订阅 `identity.user.password-changed`） |
+| 收紧/放宽认证 | proto policy 注解（`anonymous` / `permissions` / `roles`），无需改代码 |
+
+改完跑 `mise run lint && mise run test`。你的 guard_test 会拦住越界的
+import（domain 不许 import infra/app/api）。

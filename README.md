@@ -34,13 +34,15 @@ lynx-start add identity --registry <本仓库目录>   # 身份：注册/登录/
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
 
-# 跑起来（mise：go/buf 钉版）
+# 跑起来（顺序重要：genproto 未生成时 go mod tidy 必失败；mise 钉版 go/buf）
 mise install && mise trust
-go mod init github.com/acme/myapp   # 或按提示
-buf dep update && buf generate      # proto → genproto/
+mise run generate               # buf dep update + lint + generate → genproto/
+go mod tidy                     # kernel（semver）与模块依赖在此拉取
 mise run db:up && mise run db:migrate
-mise run dev                        # gRPC :9060 / HTTP :8080
+mise run dev                    # gRPC :9060 / HTTP :8080
 ```
+
+写自己的业务域模块：见 [docs/module-authoring.md](docs/module-authoring.md)。
 
 ## 仓库结构
 
@@ -62,6 +64,7 @@ cli/        lynx-start 安装器（init / add / list；shadcn 语义：默认不
 registry/   registry.json 模块索引
 scaffold/   lynx-start init 生成的应用骨架模板
 docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 六条契约）
+docs/module-authoring.md   模块编写指南（在应用里新增业务域 / 发布到 registry）
 GLOSSARY.md 统一语言
 ```
 
