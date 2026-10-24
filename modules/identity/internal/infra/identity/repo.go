@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-start/kernel/uow/buntx"
-	"github.com/lynx-go/lynx-start/modules/identity/internal/domain/identity"
+	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )

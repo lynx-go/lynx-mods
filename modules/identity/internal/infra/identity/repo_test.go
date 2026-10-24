@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-start/kernel/testutil"
-	"github.com/lynx-go/lynx-start/modules/identity/internal/domain/identity"
+	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
 	"github.com/lynx-go/lynx-start/modules/identity/internal/infra/identity/migrations"
 )
 

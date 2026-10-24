@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-start/kernel/uow/buntx"
-	"github.com/lynx-go/lynx-start/modules/demo/internal/domain/demo"
+	"github.com/lynx-go/lynx-start/modules/demo/domain/demo"
 	"github.com/uptrace/bun"
 )
 

@@ -9,7 +9,7 @@ import (
 	"github.com/lynx-go/lynx-start/kernel/events"
 	"github.com/lynx-go/lynx-start/kernel/idgen"
 	"github.com/lynx-go/lynx-start/kernel/uow"
-	"github.com/lynx-go/lynx-start/modules/demo/internal/domain/demo"
+	"github.com/lynx-go/lynx-start/modules/demo/domain/demo"
 )
 
 // UseCase 是样例模块的用例集。

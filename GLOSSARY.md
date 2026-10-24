@@ -60,5 +60,5 @@ _Avoid_: 全局错误码
 _Avoid_: 模块引用、跨模块调用
 
 **端口（Port）**:
-domain 层定义的接口，infra 层实现，wire.Bind 绑定；跨模块协作的推荐通道。
+domain 层定义的接口，infra 层实现，Assemble 显式注入；跨模块协作的推荐通道。
 _Avoid_: 服务（service 泛称时）

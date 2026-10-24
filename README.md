@@ -31,6 +31,7 @@ lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录
 cd myapp
 lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
 lynx-start add identity --registry <本仓库目录>   # 身份：注册/登录/改密 + Bearer 认证器
+lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 
 # 跑起来（mise：go/buf 钉版）
 mise install && mise trust
@@ -69,6 +70,7 @@ GLOSSARY.md 统一语言
 |---|---|---|
 | `demo` | 0.1.0 | 单实体 CRUD 样例，验证装配管线（不承载业务语义） |
 | `identity` | 0.1.0 | 注册/登录（Argon2id 口令散列 + HS256 JWT，purpose 域隔离）/自助改密；向应用贡献 Bearer 认证器——安装后未声明 `anonymous` 的方法自动要求认证。事件目录：`identity.user.created` / `identity.user.password-changed`。安全边界：令牌无吊销（TTL 默认 30m，停用即时生效需每请求回读）；生产部署必须更换 `identity.secret`（Assemble 对开发默认密钥打警告） |
+| `session` | 0.1.0 | **依赖 identity**（首个跨模块依赖，安装器校验 DAG）。把 identity 的无状态令牌升级为可吊销会话：CreateSession（principal 驱动）→ 访问(15m)+刷新(30d)令牌对；Refresh 轮换刷新令牌（旧 jti 重放即吊销整个会话）；Logout/LogoutAll；订阅 `identity.user.password-changed` 自动全局吊销。访问令牌与 identity 令牌在认证链共存 |
 
 > 模块必须是真实可编译代码：kernel 的任何破坏性变更都会在本仓
 > `go build ./...` 立即暴露，而不是等到某个应用安装时才炸。这是
@@ -76,8 +78,8 @@ GLOSSARY.md 统一语言
 
 ## 模块六条契约（ADR-0004）
 
-1. 分层归属：`internal/{domain,app,api,infra}/<module>` + `proto/<module>/v1`，生成物本地 buf 生成
-2. 模块间仅 domain 级 DAG 依赖；跨域走 Kernel 端口 + app 适配器 + 事件字符串目录
+1. 分层归属：`domain/<module>`（对外契约面）+ `internal/{app,api,infra}/<module>` + `proto/<module>/v1`，生成物本地 buf 生成
+2. 模块间仅 domain 级 DAG 依赖（编译器强制——domain 在 internal 之外，app/infra/api 互引直接编不过）；跨域走 Kernel 端口 + app 适配器 + 事件字符串目录
 3. 配置自治：模块自带 Config struct（`UnmarshalKey` 自有段），无全局 config.proto
 4. 迁移隔离：每模块独立 goose 版本表（`goose_<module>_db`），禁跨模块外键
 5. 错误码区段：`errcode.MustRegister("<module>")`，区段内自定义

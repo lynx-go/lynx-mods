@@ -44,7 +44,7 @@ func cmdInit(args []string) error {
 	}
 	scaffoldDir := filepath.Join(*registryDir, "scaffold")
 	res, err := render.Tree(scaffoldDir, target, render.NewData(appName, modulePath),
-		render.Options{Overwrite: *force, Report: printf})
+		render.Options{Overwrite: *force, Template: true, Report: printf})
 	if err != nil {
 		return err
 	}

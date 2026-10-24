@@ -2,6 +2,7 @@
   "name": "lynx-start",
   "items": [
     { "name": "demo", "path": "modules/demo" },
-    { "name": "identity", "path": "modules/identity" }
+    { "name": "identity", "path": "modules/identity" },
+    { "name": "session", "path": "modules/session" }
   ]
 }

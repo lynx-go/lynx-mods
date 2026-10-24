@@ -36,10 +36,14 @@ func NewData(appName, modulePath string) Data {
 type Options struct {
 	Overwrite bool
 	DryRun    bool
+	// Template 启用 text/template 渲染。scaffold 骨架是模板（true）；
+	// 模块安装是普通源码（false）——必须逐字节复制后仅做 Rewrite，
+	// 不得过模板引擎（Go 复合字面量的 `{{` 会撞模板语法）。
+	Template bool
 	// Skip 匹配的相对路径跳过（如模块目录里的 item.json）。
 	Skip func(rel string) bool
-	// Rewrite 在模板执行后对内容做最终变换（如安装时把模块规范 module
-	// path 改写为应用 module path）。rel 用于按后缀过滤。
+	// Rewrite 在模板执行（或原样复制）后对内容做最终变换（如安装时把
+	// 模块规范 module path 改写为应用 module path）。rel 用于按后缀过滤。
 	Rewrite func(rel string, content []byte) []byte
 	// Report 打印渲染动作（默认 fmt.Printf）。
 	Report func(format string, args ...any)
@@ -77,15 +81,20 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		tmpl, err := template.New(rel).Parse(string(raw))
-		if err != nil {
-			return fmt.Errorf("parse template %s: %w", rel, err)
+		var content []byte
+		if opts.Template {
+			tmpl, err := template.New(rel).Parse(string(raw))
+			if err != nil {
+				return fmt.Errorf("parse template %s: %w", rel, err)
+			}
+			var buf strings.Builder
+			if err := tmpl.Execute(&buf, data); err != nil {
+				return fmt.Errorf("execute template %s: %w", rel, err)
+			}
+			content = []byte(buf.String())
+		} else {
+			content = raw
 		}
-		var buf strings.Builder
-		if err := tmpl.Execute(&buf, data); err != nil {
-			return fmt.Errorf("execute template %s: %w", rel, err)
-		}
-		content := []byte(buf.String())
 		if opts.Rewrite != nil {
 			content = opts.Rewrite(rel, content)
 		}

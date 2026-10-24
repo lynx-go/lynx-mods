@@ -10,7 +10,7 @@ import (
 	"github.com/lynx-go/lynx-start/kernel/clock"
 	"github.com/lynx-go/lynx-start/kernel/events"
 	"github.com/lynx-go/lynx-start/kernel/jwt"
-	"github.com/lynx-go/lynx-start/modules/identity/internal/domain/identity"
+	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
 )
 
 // fakeRepo 是仓储端口的内存实现（返回深拷贝防用例层误改仓储状态）。

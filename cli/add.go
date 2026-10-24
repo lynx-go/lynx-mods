@@ -70,8 +70,18 @@ func cmdAdd(args []string) error {
 
 	// 1) 渲染模块源码树：模块在本仓是真实 Go module，安装时排除工程文件
 	//    （go.mod/item.json/genproto/buf 配置），.go/.proto 中的规范 module
-	//    path 改写为应用 module path（shadcn alias rewrite 的对应物）。
-	canonical := []byte(item.CanonicalModulePath())
+	//    path 改写为应用 module path（shadcn alias rewrite 的对应物；安装
+	//    时模块名目录拍平：…/modules/<name>/X → <app>/X）。
+	//    本模块与全部声明依赖都要改写——模块可能 import 依赖模块的 domain
+	//    包（如 session → identity），依赖方必已安装（上面已校验）。
+	prefixes := [][]byte{[]byte(item.CanonicalModulePath() + "/")}
+	for _, dep := range item.ModuleDependencies {
+		depItem, err := idx.Item(*registryDir, dep)
+		if err != nil {
+			return err
+		}
+		prefixes = append(prefixes, []byte(depItem.CanonicalModulePath()+"/"))
+	}
 	appPath := []byte(m.ModulePath)
 	res, err := render.Tree(item.Dir, appDir, data, render.Options{
 		Overwrite: overwriteAny,
@@ -85,7 +95,10 @@ func cmdAdd(args []string) error {
 			if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {
 				return content
 			}
-			return bytes.ReplaceAll(content, canonical, appPath)
+			for _, p := range prefixes {
+				content = bytes.ReplaceAll(content, p, append(appPath, '/'))
+			}
+			return content
 		},
 		Report: printf,
 	})

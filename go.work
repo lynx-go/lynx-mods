@@ -5,4 +5,5 @@ use (
 	./kernel
 	./modules/demo
 	./modules/identity
+	./modules/session
 )
