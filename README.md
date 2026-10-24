@@ -27,7 +27,8 @@ cd cli && go build -o /usr/local/bin/lynx-start .
 # 生成应用骨架 + 安装模块
 lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
-lynx-start add demo --registry <本仓库目录>
+lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
+lynx-start add identity --registry <本仓库目录>   # 身份：注册/登录/改密 + Bearer 认证器
 
 # 跑起来（mise：go/buf 钉版）
 mise install && mise trust
@@ -60,6 +61,13 @@ docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 
 GLOSSARY.md 统一语言
 ```
 
+## 可安装模块
+
+| 模块 | 版本 | 说明 |
+|---|---|---|
+| `demo` | 0.1.0 | 单实体 CRUD 样例，验证装配管线（不承载业务语义） |
+| `identity` | 0.1.0 | 注册/登录（Argon2id 口令散列 + HS256 JWT，purpose 域隔离）/自助改密；向应用贡献 Bearer 认证器——安装后未声明 `anonymous` 的方法自动要求认证。事件目录：`identity.user.created` / `identity.user.password-changed`。安全边界：令牌无吊销（TTL 默认 30m，停用即时生效需每请求回读）；生产部署必须更换 `identity.secret`（Assemble 对开发默认密钥打警告） |
+
 > 模块必须是真实可编译代码：kernel 的任何破坏性变更都会在本仓
 > `go build ./...` 立即暴露，而不是等到某个应用安装时才炸。这是
 > shadcn（组件在自家 monorepo 里被构建与类型检查）的对应纪律。
@@ -82,9 +90,9 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 ## Roadmap
 
-- `lynx-start update`（diff 语义）/ `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
+- `lynx-start update`（diff 语义）/ `lynx-start remove` / `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
 - 远端 registry（git tag 版本 pin）
-- 首批真实业务模块（identity/access/audit…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
+- 下一批业务模块（access 授权 / audit 审计 / session 会话与令牌吊销…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 
 ---
 

@@ -66,6 +66,7 @@ cd "$WORK"
 cd e2eapp
 mise trust >/dev/null 2>&1 || true
 "$WORK/lyx" add demo --registry "$ROOT" >/dev/null
+"$WORK/lyx" add identity --registry "$ROOT" >/dev/null
 go mod init example.com/e2eapp >/dev/null
 go mod edit -replace github.com/lynx-go/lynx-start/kernel="$ROOT/kernel"
 buf dep update >/dev/null
