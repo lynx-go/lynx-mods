@@ -42,14 +42,9 @@ func cmdInit(args []string) error {
 	if modulePath == "" {
 		modulePath = "example.com/" + appName
 	}
-	envPrefix := strings.ToUpper(strings.ReplaceAll(appName, "-", "_"))
-
 	scaffoldDir := filepath.Join(*registryDir, "scaffold")
-	res, err := render.Tree(scaffoldDir, target, render.Data{
-		AppName:    appName,
-		ModulePath: modulePath,
-		EnvPrefix:  envPrefix,
-	}, render.Options{Overwrite: *force, Report: printf})
+	res, err := render.Tree(scaffoldDir, target, render.NewData(appName, modulePath),
+		render.Options{Overwrite: *force, Report: printf})
 	if err != nil {
 		return err
 	}

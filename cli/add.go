@@ -64,7 +64,7 @@ func cmdAdd(args []string) error {
 	}
 	already := m.Has(name)
 
-	data := render.Data{AppName: m.Name, ModulePath: m.ModulePath, EnvPrefix: strings.ToUpper(strings.ReplaceAll(m.Name, "-", "_"))}
+	data := render.NewData(m.Name, m.ModulePath)
 	overwriteAny := *overwrite || *overwriteLong
 
 	// 1) 渲染模块源码树：模块在本仓是真实 Go module，安装时排除工程文件

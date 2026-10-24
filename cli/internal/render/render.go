@@ -16,6 +16,19 @@ type Data struct {
 	AppName    string
 	ModulePath string
 	EnvPrefix  string
+	// DBName 是数据库/用户名形态的应用名（中划线转下划线）——
+	// Postgres 标识符不允许中划线。
+	DBName string
+}
+
+// NewData 从应用名与 module path 构造渲染变量。
+func NewData(appName, modulePath string) Data {
+	return Data{
+		AppName:    appName,
+		ModulePath: modulePath,
+		EnvPrefix:  strings.ToUpper(strings.ReplaceAll(appName, "-", "_")),
+		DBName:     strings.ReplaceAll(appName, "-", "_"),
+	}
 }
 
 // Options 控制渲染行为。
