@@ -8,6 +8,7 @@ import (
 	"github.com/lynx-go/lynx"
 	"github.com/lynx-go/lynx-start/kernel/events"
 	appsession "github.com/lynx-go/lynx-start/modules/session/internal/app/session"
+	domainsession "github.com/lynx-go/lynx-start/modules/session/domain/session"
 	"github.com/lynx-go/lynx/eventbus"
 )
 
@@ -36,7 +37,7 @@ func (w *PasswordChangedWatcher) Init(lynx.AppContext) error { return nil }
 
 // Start 订阅并保持存活直至框架关停。
 func (w *PasswordChangedWatcher) Start(ctx context.Context) error {
-	err := w.bus.Subscribe(ctx, events.TopicFor("identity.user.password-changed"), w.handle,
+	err := w.bus.Subscribe(ctx, events.TopicFor(domainsession.IdentityUserPasswordChanged), w.handle,
 		eventbus.WithHandlerName("session-password-changed"))
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (w *PasswordChangedWatcher) handle(ctx context.Context, e *eventbus.RawEven
 		w.logger.Warn("session watcher: malformed envelope, drop", "topic", e.Topic, "error", err)
 		return nil
 	}
-	if env.Name != "identity.user.password-changed" {
+	if env.Name != domainsession.IdentityUserPasswordChanged {
 		return nil
 	}
 	var payload struct {

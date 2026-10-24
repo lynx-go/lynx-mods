@@ -40,6 +40,50 @@ func TestValidateModules(t *testing.T) {
 	}
 }
 
+func TestValidateModulesEventCatalog(t *testing.T) {
+	// 正路径：发布方与消费方目录对得上（跨模块字符串目录，契约②）。
+	ok := []Module{
+		{Name: "identity", PublishedEvents: []string{"identity.user.created", "identity.user.password-changed"}},
+		{Name: "session", DependsOn: []string{"identity"},
+			PublishedEvents: []string{"session.session.created"},
+			ConsumedEvents:  []string{"identity.user.password-changed"}},
+	}
+	if err := ValidateModules(ok); err != nil {
+		t.Fatalf("valid catalog: %v", err)
+	}
+
+	// 消费的事件没有任何已装模块发布（typo/漏装/上游改名）。
+	orphan := []Module{
+		{Name: "identity", PublishedEvents: []string{"identity.user.created"}},
+		{Name: "session", DependsOn: []string{"identity"},
+			ConsumedEvents: []string{"identity.user.password-changed"}},
+	}
+	if err := ValidateModules(orphan); err == nil {
+		t.Error("consumed without publisher: want error")
+	}
+
+	// 发布名首段不属于本模块（目录所有权）。
+	owner := []Module{{Name: "demo", PublishedEvents: []string{"identity.user.created"}}}
+	if err := ValidateModules(owner); err == nil {
+		t.Error("wrong owner prefix: want error")
+	}
+
+	// 名字不符合 NameRe（如事件名用了下划线——运行期 Validate 同样会拒）。
+	bad := []Module{{Name: "demo", PublishedEvents: []string{"demo.item_created"}}}
+	if err := ValidateModules(bad); err == nil {
+		t.Error("invalid event name: want error")
+	}
+
+	// 两个模块声明发布同一事件（撞目录）。
+	dup := []Module{
+		{Name: "a", PublishedEvents: []string{"a.x.created"}},
+		{Name: "b", PublishedEvents: []string{"a.x.created"}},
+	}
+	if err := ValidateModules(dup); err == nil {
+		t.Error("duplicate published event: want error")
+	}
+}
+
 func TestConfigSpecKeyOrName(t *testing.T) {
 	if got := (ConfigSpec{}).KeyOrName("demo"); got != "demo" {
 		t.Errorf("default key = %q, want demo", got)

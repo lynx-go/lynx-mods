@@ -67,6 +67,11 @@ var (
     ErrTaskNotFound = space.New("TASK_NOT_FOUND", "todo task not found")
     ErrEmptyTitle   = space.New("EMPTY_TITLE", "title must not be empty")
 )
+
+// 事件目录（契约②）：app 层发布与 Module().PublishedEvents 共用同一常量。
+const (
+    EventTaskCreated = "todo.task.created"
+)
 ```
 
 哨兵错误由 app 层转 `grpc/status`（携带 ErrorInfo）；仓储接口方法一律接收
@@ -92,8 +97,9 @@ internal/app/todo/todo.go    # type UseCase struct{repo, tx, events, now}
 
 对照 `modules/demo/internal/app/demo/demo.go`：写操作包在
 `u.tx.Run(ctx, func(ctx) error { ... })` 里，仓储与事件发布共享同一事务；
-事件用 `events.Envelope{Name, Module, Payload}`，事件名全局唯一约定
-`<module>.<entity>.<verb>`（如 `todo.task.created`）。
+事件名引用 domain 常量（如 `todo.EventTaskCreated`），载荷必须 `json.Marshal`
+编码（手搓字符串遇到含引号/反斜杠的值会产生非法 JSON）；发布走模块自己的
+publish 帮手（demo/identity 同款）。
 
 ### 第 4 步：proto——API 契约与策略声明
 
@@ -143,6 +149,8 @@ func Module() kernel.Module {
         Description: "待办任务",
         Policies:    []protoreflect.FileDescriptor{todov1.File_todo_v1_todo_proto},
         Migrations:  migrations.FS,
+        PublishedEvents: []string{todo.EventTaskCreated},               // domain 常量，与发布站点同源
+        ConsumedEvents: nil,                                           // 订阅跨模块事件时在此声明
         // DependsOn: []string{"identity"},   // 仅当 domain 层 import 了 identity 的 domain 包
     }
 }
@@ -154,6 +162,13 @@ func Assemble(deps kernel.Deps) (kernel.Assembly, error) {
     }, nil
 }
 ```
+
+**事件目录安全网**：`ValidateModules`（启动期执行，migrate 也跑）交叉校验
+目录——发布名合法且首段归属本模块、无重复发布；**消费的每个事件都有已装
+模块发布**。订阅别模块事件时的 typo、上游改名、漏装发布方，都在启动期
+fail-closed，而不是运行期静默不触发。消费方按契约②不 import 发布者代码，
+消费的事件名常量定义在自己的 domain（对照 session 的
+`IdentityUserPasswordChanged`）。
 
 需要配置段时（对照 identity）：在 app 层定义 Config struct + `ApplyDefaults`，
 Assemble 里 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg)`，
@@ -188,6 +203,8 @@ import todo "<app-module-path>/internal/api/todo"
 | gRPC/HTTP 服务 | — | `Registrations` | demo |
 | 策略描述符 | `Policies` | — | 全部 |
 | 迁移链 | `Migrations` | — | 全部 |
+| 发布事件目录 | `PublishedEvents` | — | demo / identity / session / access |
+| 消费事件目录 | `ConsumedEvents` | — | session（改密联动） |
 | 事件订阅/后台服务 | — | `Services` | session（订阅改密事件） |
 | 定时任务 | — | `Tasks` | — |
 | 认证器 | — | `Authenticators` | identity（Bearer） |
@@ -225,6 +242,8 @@ import todo "<app-module-path>/internal/api/todo"
    - `moduleDependencies`：安装器据此校验 DAG 并改写依赖方 import；
    - `goDependencies`：安装后需手动 `go get` 的第三方库；
    - `configFragment`：追加进应用 config.yaml 的段（YAML 文本）；
+   - `publishedEvents`：展示用目录数据，**与 `Module().PublishedEvents` 保持
+     一致**（后者是启动期被校验的事实源）；
 3. 在 `registry/registry.json` 的 `items` 里登记 `{ "name", "path" }`；
 4. 加入根 `go.work`，`mise run lint && mise run test` 全绿后提交。
    版本语义：破坏性变更升 minor 前缀（0.x 阶段），`lynx-start update`
@@ -237,7 +256,7 @@ import todo "<app-module-path>/internal/api/todo"
 | 加字段 | proto message → `mise run generate` → 新迁移加列 → domain 聚合与 repo 白名单列 |
 | 加方法 | proto service + http 注解 → generate → api Service 实现 → app 用例 |
 | 改配置默认值 | app 层 `Config.ApplyDefaults` + 应用 config.yaml 对应段 |
-| 订阅别模块事件 | Assemble 里经 `deps.Bus` 订阅（对照 session 订阅 `identity.user.password-changed`） |
+| 订阅别模块事件 | domain 定义消费常量 + `Module().ConsumedEvents` 声明 + Assemble 经 `deps.Bus` 订阅（对照 session 订阅 `identity.user.password-changed`）；启动期校验确有发布方 |
 | 收紧/放宽认证 | proto policy 注解（`anonymous` / `permissions` / `roles`），无需改代码 |
 
 改完跑 `mise run lint && mise run test`。你的 guard_test 会拦住越界的

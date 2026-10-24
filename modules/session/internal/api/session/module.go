@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	sessionv1 "github.com/lynx-go/lynx-start/modules/session/genproto/session/v1"
+	"github.com/lynx-go/lynx-start/modules/session/domain/session"
 	appsession "github.com/lynx-go/lynx-start/modules/session/internal/app/session"
 	infrasession "github.com/lynx-go/lynx-start/modules/session/internal/infra/session"
 	"github.com/lynx-go/lynx-start/modules/session/internal/infra/session/migrations"
@@ -30,6 +31,12 @@ func Module() kernel.Module {
 		DependsOn:   []string{"identity"},
 		Policies:    []protoreflect.FileDescriptor{sessionv1.File_session_v1_session_proto},
 		Migrations:  migrations.FS,
+		PublishedEvents: []string{
+			session.EventSessionCreated,
+			session.EventSessionRefreshed,
+			session.EventSessionRevoked,
+		},
+		ConsumedEvents: []string{session.IdentityUserPasswordChanged},
 		Config: kernel.ConfigSpec{
 			Defaults: map[string]any{
 				"secret":      appsession.DefaultDevSecret,

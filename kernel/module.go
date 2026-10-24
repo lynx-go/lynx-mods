@@ -16,8 +16,10 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
+	"strings"
 
 	"github.com/lynx-go/grpcapi/server"
+	"github.com/lynx-go/lynx-start/kernel/events"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -53,6 +55,17 @@ type Module struct {
 
 	// Config 声明模块的配置段。
 	Config ConfigSpec
+
+	// PublishedEvents 是本模块发布的事件目录（契约②：字符串目录
+	// "<module>.<noun>.<verb>"，与 item.json 的 publishedEvents 一致）。
+	// 声明后由 ValidateModules 交叉校验：名字合法、首段归属本模块、
+	// 任何模块的 ConsumedEvents 都能在此找到发布者——typo/改名/漏装
+	// 在启动期 fail-closed，而不是运行期静默不触发。
+	PublishedEvents []string
+
+	// ConsumedEvents 是本模块订阅的跨模块事件目录（消费方按契约②不
+	// import 发布者代码，字符串在此登记以换取启动期校验）。
+	ConsumedEvents []string
 }
 
 // ConfigSpec 声明模块配置段：模块在自己的 Init 里以
@@ -135,6 +148,36 @@ func ValidateModules(mods []Module) error {
 	for name, d := range indeg {
 		if d > 0 {
 			return fmt.Errorf("module dependency cycle involving %q", name)
+		}
+	}
+
+	// 事件目录交叉校验（契约②安全网）：发布侧名字合法且归属本模块、
+	// 无重复发布；消费侧每个事件都有已装发布者。字符串目录的 typo 与
+	// 跨版本改名在此暴露（启动期 fail-closed），代价零——未声明目录的
+	// 模块不受影响。
+	published := make(map[string]string, len(mods))
+	for _, m := range mods {
+		for _, name := range m.PublishedEvents {
+			if !events.NameRe.MatchString(name) {
+				return fmt.Errorf("module %q publishes invalid event name %q", m.Name, name)
+			}
+			if owner := strings.SplitN(name, ".", 2)[0]; owner != m.Name {
+				return fmt.Errorf("module %q publishes %q: name must be prefixed by module name", m.Name, name)
+			}
+			if prev, dup := published[name]; dup {
+				return fmt.Errorf("event %q published by both %q and %q", name, prev, m.Name)
+			}
+			published[name] = m.Name
+		}
+	}
+	for _, m := range mods {
+		for _, name := range m.ConsumedEvents {
+			if !events.NameRe.MatchString(name) {
+				return fmt.Errorf("module %q consumes invalid event name %q", m.Name, name)
+			}
+			if _, ok := published[name]; !ok {
+				return fmt.Errorf("module %q consumes %q which no installed module publishes", m.Name, name)
+			}
 		}
 	}
 	return nil

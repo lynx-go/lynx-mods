@@ -65,7 +65,7 @@ func (u *UseCase) Register(ctx context.Context, email, plainPassword, displayNam
 			return err
 		}
 		user = nu
-		return u.publish(ctx, "identity.user.created", map[string]string{"id": nu.ID, "email": nu.Email})
+		return u.publish(ctx, identity.EventUserCreated, map[string]string{"id": nu.ID, "email": nu.Email})
 	})
 	if err != nil {
 		return nil, nil, err
@@ -177,7 +177,7 @@ func (u *UseCase) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 		if err := u.repo.UpdatePassword(ctx, user); err != nil {
 			return err
 		}
-		return u.publish(ctx, "identity.user.password-changed", map[string]string{"id": user.ID})
+		return u.publish(ctx, identity.EventUserPasswordChanged, map[string]string{"id": user.ID})
 	})
 }
 

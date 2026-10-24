@@ -4,6 +4,7 @@ import (
 	"context"
 
 	demov1 "github.com/lynx-go/lynx-start/modules/demo/genproto/demo/v1"
+	"github.com/lynx-go/lynx-start/modules/demo/domain/demo"
 	appdemo "github.com/lynx-go/lynx-start/modules/demo/internal/app/demo"
 	infrademo "github.com/lynx-go/lynx-start/modules/demo/internal/infra/demo"
 	"github.com/lynx-go/lynx-start/modules/demo/internal/infra/demo/migrations"
@@ -22,6 +23,11 @@ func Module() kernel.Module {
 		Description: "样例模块：单实体 CRUD，验证装配管线（不承载业务语义）",
 		Policies:    []protoreflect.FileDescriptor{demov1.File_demo_v1_demo_proto},
 		Migrations:  migrations.FS,
+		PublishedEvents: []string{
+			demo.EventItemCreated,
+			demo.EventItemRenamed,
+			demo.EventItemDeleted,
+		},
 	}
 }
 
