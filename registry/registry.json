@@ -1,0 +1,6 @@
+{
+  "name": "lynx-start",
+  "items": [
+    { "name": "demo", "path": "modules/demo" }
+  ]
+}

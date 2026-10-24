@@ -1,0 +1,14 @@
+{
+  "name": "demo",
+  "version": "0.1.0",
+  "description": "样例模块：单实体 CRUD，验证装配管线（不承载业务语义）",
+  "modulePath": "github.com/lynx-go/lynx-start/modules/demo",
+  "moduleDependencies": [],
+  "goDependencies": [],
+  "configFragment": "",
+  "publishedEvents": [
+    "demo.item.created",
+    "demo.item.renamed",
+    "demo.item.deleted"
+  ]
+}

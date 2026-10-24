@@ -1,0 +1,100 @@
+// Package render 把模板目录树渲染到目标目录：全部文件过 text/template
+// （数据：AppName/ModulePath/EnvPrefix），已存在文件默认跳过（shadcn 语义）。
+package render
+
+import (
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"text/template"
+)
+
+// Data 是渲染变量。
+type Data struct {
+	AppName    string
+	ModulePath string
+	EnvPrefix  string
+}
+
+// Options 控制渲染行为。
+type Options struct {
+	Overwrite bool
+	DryRun    bool
+	// Skip 匹配的相对路径跳过（如模块目录里的 item.json）。
+	Skip func(rel string) bool
+	// Rewrite 在模板执行后对内容做最终变换（如安装时把模块规范 module
+	// path 改写为应用 module path）。rel 用于按后缀过滤。
+	Rewrite func(rel string, content []byte) []byte
+	// Report 打印渲染动作（默认 fmt.Printf）。
+	Report func(format string, args ...any)
+}
+
+// Result 汇总一次渲染的动作。
+type Result struct {
+	Created []string
+	Skipped []string
+}
+
+// Tree 渲染 srcDir 整棵树到 dstDir。
+func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
+	report := opts.Report
+	if report == nil {
+		report = func(string, ...any) {}
+	}
+	res := &Result{}
+	err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		if opts.Skip != nil && opts.Skip(rel) {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		tmpl, err := template.New(rel).Parse(string(raw))
+		if err != nil {
+			return fmt.Errorf("parse template %s: %w", rel, err)
+		}
+		var buf strings.Builder
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return fmt.Errorf("execute template %s: %w", rel, err)
+		}
+		content := []byte(buf.String())
+		if opts.Rewrite != nil {
+			content = opts.Rewrite(rel, content)
+		}
+		target := filepath.Join(dstDir, filepath.FromSlash(rel))
+		if _, statErr := os.Stat(target); statErr == nil && !opts.Overwrite {
+			res.Skipped = append(res.Skipped, rel)
+			report("skip   %s（已存在，-o 覆盖）", rel)
+			return nil
+		}
+		if opts.DryRun {
+			res.Created = append(res.Created, rel)
+			report("dryrun %s", rel)
+			return nil
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(target, content, 0o644); err != nil {
+			return err
+		}
+		res.Created = append(res.Created, rel)
+		report("write  %s", rel)
+		return nil
+	})
+	return res, err
+}

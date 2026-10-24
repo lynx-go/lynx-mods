@@ -1,0 +1,77 @@
+# lynx-start 开发工具链与任务（mise-en-place）
+#
+#   mise install          安装钉版工具链（go / buf / golangci-lint）
+#   mise tasks            列出全部任务
+#
+# Go 依赖版本由各模块 go.mod 钉版（MVS）；本文件钉的是「工具链」：
+# 编译器、代码生成器与 linter 的可复现性。任务统一以 sh -e 执行。
+
+[tools]
+go = "1.26.8"              # go.work 与各 go.mod 的 `go` 指令上限
+buf = "1.65.0"             # buf lint / generate（remote 插件版本钉在各 buf.gen.yaml）
+golangci-lint = "2.12.2"   # 与 torchwood 同款已验证版本
+
+[task_config]
+shell = "sh -o errexit -c"
+
+[tasks.build]
+description = "构建全部模块（kernel / cli / modules/*）"
+run = '''
+for d in kernel cli modules/*; do
+  [ -f "$d/go.mod" ] || continue
+  echo "== build $d"
+  (cd "$d" && go build ./...)
+done
+'''
+
+[tasks.test]
+description = "全部模块测试"
+run = '''
+for d in kernel cli modules/*; do
+  [ -f "$d/go.mod" ] || continue
+  echo "== test $d"
+  (cd "$d" && go test ./...)
+done
+'''
+
+[tasks."generate:proto"]
+description = "重新生成模块 genproto（modules/*/buf.gen.yaml，产物入库）"
+run = '''
+for d in modules/*; do
+  [ -f "$d/buf.gen.yaml" ] || continue
+  echo "== generate $d"
+  (cd "$d" && buf lint && buf generate)
+done
+'''
+
+[tasks.lint]
+description = "golangci-lint 全部模块 + gofmt 漂移检查"
+run = '''
+for d in kernel cli modules/*; do
+  [ -f "$d/go.mod" ] || continue
+  echo "== lint $d"
+  (cd "$d" && golangci-lint run ./... && test -z "$(gofmt -l .)")
+done
+'''
+
+[tasks."test:scaffold"]
+description = "安装管线 e2e：临时目录 init→add→buf→tidy→build→vet→test（不需 DB）"
+run = '''
+ROOT="$PWD"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+(cd cli && go build -o "$WORK/lyx" .)
+cd "$WORK"
+"$WORK/lyx" init e2eapp --module example.com/e2eapp --registry "$ROOT" >/dev/null
+cd e2eapp
+mise trust >/dev/null 2>&1 || true
+"$WORK/lyx" add demo --registry "$ROOT" >/dev/null
+go mod init example.com/e2eapp >/dev/null
+go mod edit -replace github.com/lynx-go/lynx-start/kernel="$ROOT/kernel"
+buf dep update >/dev/null
+buf lint
+buf generate
+go mod tidy >/dev/null
+go build ./... && go vet ./... && go test ./...
+echo "scaffold e2e: OK（init→add→generate→build→vet→test 全绿）"
+'''

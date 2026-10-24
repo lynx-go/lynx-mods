@@ -1,0 +1,10 @@
+server:
+  grpc_addr: ":9060"
+  http_addr: ":8080"
+
+data:
+  database:
+    source: "postgres://{{.AppName}}:{{.AppName}}@127.0.0.1:5432/{{.AppName}}?sslmode=disable"
+    max_open_conns: 8
+
+# lyx:config-fragment（lyx add 追加模块配置段的锚点，勿删）
