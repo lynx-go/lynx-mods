@@ -42,8 +42,9 @@ lynx-start add audit --registry <本仓库目录>      # 审计：RPC 拦截器�
 git add -A && git commit -m wip    # update 写盘不可回滚，先 commit
 lynx-start update identity --registry <本仓库目录>
 
-# 体检（modules.go/config/基线/依赖一致性）与卸载
+# 体检（modules.go/config/基线/依赖一致性；⚠ 安全公告提示）与卸载
 lynx-start doctor --registry <本仓库目录>
+lynx-start audit --registry <本仓库目录>    # 安全公告门禁：命中已知公告即非零退出（CI 用）
 lynx-start remove audit --registry <本仓库目录>   # DAG 反向校验；迁移表保留（数据安全）
 
 # 跑起来（顺序重要：genproto 未生成时 go mod tidy 必失败；mise 钉版 go/buf）
@@ -72,7 +73,7 @@ modules/    registry items：每模块是**真实 Go module**（自带 go.mod、
             genproto 与 buf 配置，在本仓内可编译、可测试、CI 覆盖）；
             lynx-start add 安装时改写导入路径为应用 module path（shadcn alias
             rewrite 的对应物），并排除 go.mod/genproto 等工程文件
-cli/        lynx-start 安装器（init / add / update / list；shadcn 语义：默认不覆盖、幂等；
+cli/        lynx-start 安装器（init / add / update / remove / doctor / audit / list / registry；shadcn 语义：默认不覆盖、幂等；
             add 支持 name@version（git tag）、写安装基线，update 做三方合并）
 registry/   registry.json 模块索引
 scaffold/   lynx-start init 生成的应用骨架模板
@@ -169,8 +170,9 @@ lynx-start add audit --registry <this-repo>      # audit: RPC interceptor auto-r
 git add -A && git commit -m wip    # update writes are not rollback-safe — commit first
 lynx-start update identity --registry <this-repo>
 
-# Health checks (modules.go/config/baseline/dependency consistency) and uninstall
+# Health checks (modules.go/config/baseline/dependency consistency; security advisories as warnings) and uninstall
 lynx-start doctor --registry <this-repo>
+lynx-start audit --registry <this-repo>     # advisory gate: non-zero exit on known-advisory hits (for CI)
 lynx-start remove audit --registry <this-repo>   # reverse-DAG validation; migration tables are kept (data safety)
 
 # Run it (order matters: go mod tidy fails before genproto exists; mise pins go/buf)
