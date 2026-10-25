@@ -6,6 +6,23 @@
 
 ## Unreleased
 
+- **ADR-0008 软多租户横切约定:organization_id 即唯一租户键**(路线图挂了三批
+  的"tenancy 越晚决定 retrofit 越痛"兑现——第一个业务资源模块出现前定约定,
+  当前零 retrofit 成本)。四定案:①租户键不变量——organization_id 是唯一
+  租户键,永不引入 tenant_id/workspace_id 平行概念(双租户概念并存是 retrofit
+  最痛源);软→硬升级(行级过滤/分库/RLS)永远在既有键上加层,数据模型零改动。
+  ②业务资源模块标准姿势:表挂 organization_id NOT NULL+复合唯一约束必含
+  organization_id(跨组织重名合法,ADR-0002 教训继承)+索引打头;路由挂
+  /v1/organizations/{id}/<resources>;成员资格经 ADR-0007 通道②校验。
+  ③查询防漏走纪律姿势(app 层资格校验+repo 显式过滤),强制过滤横切暂缓
+  (重启扳机:漏过滤真实出现——与 M4 同款哲学);④组织级 RBAC 路径预留:
+  access Assignment 未来加可空 organization_id(空=全局角色语义不变),
+  角色目录保持全局;顺序确认 access 组织维度→team→组织角色表达。账号域
+  模块(identity/session/notification/audit)不 retrofit——用户与会话全局
+  是 GitHub 模型本义。kernel 零改动(契约⑥原样)。弃选:硬多租户默认开
+  (RLS 成本 ADR-0002 已否+强制过滤层 bug 是静默丢数据级故障)、
+  schema-per-tenant(BaaS 特殊需求)、GitHub 完整 owner 多态(产品选择非
+  通用默认,需要时 additive 演进)。module-authoring 双语加组织挂靠一节。
 - **ADR-0007 跨模块调用面:供给方 domain 接口 + 根包导出构造器**(决策先行,
   不排期实现)。notification v0.1.0 砍显式发送时留下的口子:internal 可见性
   下应用代码/其他模块如何同步调用模块写能力。通道分级判断表:事件(异步)

@@ -124,6 +124,18 @@ Table naming convention `<module>_<entity>`; **no cross-module foreign keys**
 `modules/demo/internal/infra/demo/repo.go`). The migration chain runs under a
 goosekit-owned version table, so a rollback never affects other modules.
 
+**Organization-scoped resources (soft tenancy, ADR-0008)**: business-resource
+modules (todo/project-style, `DependsOn: organization`) scope their tables from
+day one — `organization_id text NOT NULL` (ID only, contract 4); **composite
+unique constraints must include organization_id** (same name across
+organizations is legal); list indexes lead with organization_id; resource
+routes nest under `/v1/organizations/{organization_id}/<resources>`;
+membership is checked before resource reads/writes via ADR-0007 channel 2
+(organization's domain read-only port), and repo queries carry
+organization_id explicitly. Tenant-key invariant: organization_id is the
+**single** tenant key — never introduce tenant_id/workspace_id or any parallel
+concept.
+
 ### Step 3: app — use-case orchestration
 
 ```

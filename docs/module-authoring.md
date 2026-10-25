@@ -110,6 +110,15 @@ internal/infra/todo/migrations/embed.go          # //go:embed *.sql → var FS e
 白名单（见 `modules/demo/internal/infra/demo/repo.go`）。迁移链被 goosekit
 以独立版本表执行，回滚不牵连别的模块。
 
+**组织挂靠资源（软多租户，ADR-0008）**：业务资源模块（todo/project 类，
+DependsOn: organization）的表第一天就按标准姿势挂组织——
+`organization_id text NOT NULL`（只存 ID，契约④）；**复合唯一约束必含
+organization_id**（跨组织重名合法）；列表索引以 organization_id 打头；
+资源路由挂 `/v1/organizations/{organization_id}/<resources>`；资源读写前
+经 ADR-0007 通道②（organization domain 只读端口）校验成员资格，repo 查询
+显式携带 organization_id。租户键不变量：organization_id 是**唯一**租户键，
+不引入 tenant_id/workspace_id 等平行概念。
+
 ### 第 3 步：app——用例编排
 
 ```
