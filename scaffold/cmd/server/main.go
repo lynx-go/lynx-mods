@@ -17,8 +17,7 @@ import (
 	"github.com/lynx-go/lynx/contrib/zap"
 
 	grpcapiauthn "github.com/lynx-go/grpcapi/authn"
-	grpcapiauthz "github.com/lynx-go/grpcapi/authz"
-	grpcapiinterceptor "github.com/lynx-go/grpcapi/interceptor"
+	grpcapiopenapi "github.com/lynx-go/grpcapi/openapi"
 	grpcapipolicy "github.com/lynx-go/grpcapi/policy"
 	grpcapiprotopolicy "github.com/lynx-go/grpcapi/policy/protopolicy"
 	grpcapiserver "github.com/lynx-go/grpcapi/server"
@@ -72,37 +71,12 @@ func setup(app lynx.App) error {
 	// 模块贡献的认证后增强器（access 的 roles/permissions claims 等）。
 	authnOpts := grpcapiauthn.Options{Enrichers: agg.Enrichers}
 
-	// 模块贡献拦截器 Stage（audit=50 等）时接管链构建。server.New 只在
-	// Chain==nil 时自建默认链——显式传链即完全接管，recovery/authn/authz
-	// 等基础段必须在此复刻，否则认证与权限判定静默丢失（首个贡献 Stage
-	// 的模块是 audit，此前该路径从未被执行过）。
-	var chain *grpcapiinterceptor.Chain
-	if len(agg.Stages) > 0 {
-		authnOpts.IsAnonymous = set.IsAnonymous
-		authenticator := grpcapiauthn.New(grpcapiauthn.Chain(agg.Authenticators), authnOpts)
-		decider, derr := grpcapiauthz.NewRequirementDecider(set)
-		if derr != nil {
-			return derr
-		}
-		authorizer, derr := grpcapiauthz.NewInterceptor(set, decider, grpcapiauthz.InterceptorOptions{})
-		if derr != nil {
-			return derr
-		}
-		stages := append([]grpcapiinterceptor.Stage{
-			grpcapiinterceptor.RecoveryStage(grpcapiinterceptor.RecoveryOptions{Logger: logger}),
-			grpcapiinterceptor.RequestIDStage(grpcapiinterceptor.RequestIDOptions{Logger: logger}),
-			grpcapiinterceptor.ClientInfoStage(grpcapiinterceptor.NewClientInfo(grpcapiinterceptor.ClientInfoConfig{})),
-			grpcapiinterceptor.AuthnStage(authenticator.Unary(), authenticator.Stream()),
-			grpcapiinterceptor.AuthzStage(authorizer.Unary(), authorizer.Stream()),
-			grpcapiinterceptor.ValidateStage(grpcapiinterceptor.NewValidate()),
-		}, agg.Stages...)
-		// AssembleWith 要求 Order 单调不减（模块 Stage 落在 clientinfo 与
-		// authz/validate 之间）。
-		sort.SliceStable(stages, func(i, j int) bool { return stages[i].Order < stages[j].Order })
-		chain, err = grpcapiinterceptor.Assemble(stages...)
-		if err != nil {
-			return err
-		}
+	// 模块贡献拦截器 Stage（audit=50 等）时接管链构建——复刻 server 默认链
+	// 的知识在 kernel.DefaultChain（I-08：修复经 kernel semver 推送，
+	// scaffold 生成物不再持有这段易错逻辑）。
+	chain, err := kernel.DefaultChain(logger, set, agg, authnOpts)
+	if err != nil {
+		return err
 	}
 
 	srv, err := grpcapiserver.New(app.Context(), grpcapiserver.Config{
@@ -115,6 +89,7 @@ func setup(app lynx.App) error {
 		GRPCAddr:             cfg.Server.GRPCAddr,
 		HTTPAddr:             cfg.Server.HTTPAddr,
 		AllowNoAuthenticator: len(agg.Authenticators) == 0,
+		OpenAPI:              &grpcapiopenapi.Info{Title: "{{.AppName}}", Version: "v1"},
 		Logger:               logger,
 	})
 	if err != nil {

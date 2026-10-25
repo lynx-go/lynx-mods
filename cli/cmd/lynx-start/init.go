@@ -16,6 +16,14 @@ import (
 // 保证应用 tidy 时不需要更高工具链。
 const goDirective = "1.26.8"
 
+// 依赖地板：scaffold 生成代码直接使用的最低版本（kernel.DefaultChain 与
+// grpcapi openapi 免费挂载）。升级 kernel / grpcapi 破坏 scaffold 模板时
+// 同步抬这里——应用 tidy 走 MVS 取 max，地板保证新 init 的应用直接可编译。
+const (
+	kernelFloor  = "v0.3.0"
+	grpcapiFloor = "v0.4.0"
+)
+
 // cmdInit: lynx-start init <name> —— 从 scaffold 生成应用骨架。
 func cmdInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
@@ -67,7 +75,7 @@ func cmdInit(args []string) error {
 	if _, statErr := os.Stat(goMod); statErr == nil {
 		fmt.Println("skip   go.mod (already exists)")
 	} else {
-		content := fmt.Sprintf("module %s\n\ngo %s\n", modulePath, goDirective)
+		content := fmt.Sprintf("module %s\n\ngo %s\n\nrequire (\n\tgithub.com/lynx-go/grpcapi %s\n\tgithub.com/lynx-go/lynx-start/kernel %s\n)\n", modulePath, goDirective, grpcapiFloor, kernelFloor)
 		if err := os.WriteFile(goMod, []byte(content), 0o644); err != nil {
 			return err
 		}

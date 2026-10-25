@@ -19,7 +19,8 @@ mise run db:migrate         # 各模块迁移链（独立版本表）
 mise run dev                # gRPC :9060 / HTTP :8080
 ```
 
-服务启动时会打印 HTTP 路由表（方法 / 路径 / 认证要求），无需翻 proto 找路径。
+服务启动时会打印 HTTP 路由表（方法 / 路径 / 认证要求），无需翻 proto 找路径；
+`GET /openapi.json` 同步提供 OpenAPI 3.0 文档（policy 安全语义已内含，可直接接 Swagger UI）。
 
 ## 添加模块
 
@@ -73,7 +74,9 @@ mise run dev                # gRPC :9060 / HTTP :8080
 ```
 
 On startup the server prints an HTTP route table (method / path / auth
-requirement) — no need to dig through protos for paths.
+requirement) — no need to dig through protos for paths; `GET /openapi.json`
+serves an OpenAPI 3.0 document (policy security semantics included — plug it
+straight into Swagger UI).
 
 ## Adding modules
 
