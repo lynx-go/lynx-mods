@@ -34,6 +34,7 @@ lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管
 lynx-start add identity@0.1.1 --registry <本仓库目录>  # 可选：钉版本安装（git tag）
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
+lynx-start add audit --registry <本仓库目录>      # 审计：RPC 拦截器自动记录 + 显式记录 + 查询（零依赖）
 
 # registry 模块出新版时（三方合并：本地 / 安装基线 / upstream）
 git add -A && git commit -m wip    # update 写盘不可回滚，先 commit
@@ -107,7 +108,7 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 - `lynx-start remove` / `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
 - 远端 registry（本地 git tag 版本 pin 已支持：`add <m>@<ver>` / `update`；远端仓库解析后续接入）
-- 下一批业务模块（audit 审计…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
+- 下一批业务模块（SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 
 ---
 

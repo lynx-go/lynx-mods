@@ -4,6 +4,7 @@ use (
 	./cli
 	./kernel
 	./modules/access
+	./modules/audit
 	./modules/demo
 	./modules/identity
 	./modules/session

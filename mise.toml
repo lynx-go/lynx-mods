@@ -69,6 +69,7 @@ mise trust >/dev/null 2>&1 || true
 "$WORK/lyx" add identity --registry "$ROOT" >/dev/null
 "$WORK/lyx" add session --registry "$ROOT" >/dev/null
 "$WORK/lyx" add access --registry "$ROOT" >/dev/null
+"$WORK/lyx" add audit --registry "$ROOT" >/dev/null
 # 依赖负路径：session 依赖 identity，干净应用上直接装必须被拒。
 WORK2="$(mktemp -d)"
 (cd "$WORK2" \

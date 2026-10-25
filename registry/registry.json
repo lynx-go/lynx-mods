@@ -4,6 +4,7 @@
     { "name": "demo", "path": "modules/demo" },
     { "name": "identity", "path": "modules/identity" },
     { "name": "session", "path": "modules/session" },
-    { "name": "access", "path": "modules/access" }
+    { "name": "access", "path": "modules/access" },
+    { "name": "audit", "path": "modules/audit" }
   ]
 }
