@@ -20,7 +20,7 @@ const goDirective = "1.26.8"
 // grpcapi openapi 免费挂载）。升级 kernel / grpcapi 破坏 scaffold 模板时
 // 同步抬这里——应用 tidy 走 MVS 取 max，地板保证新 init 的应用直接可编译。
 const (
-	kernelFloor  = "v0.3.0"
+	kernelFloor  = "v0.4.0"
 	grpcapiFloor = "v0.4.0"
 )
 
