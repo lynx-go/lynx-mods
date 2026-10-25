@@ -104,7 +104,7 @@ mise trust "$WORK3/updapp/mise.toml" >/dev/null 2>&1 || true
   && buf dep update >/dev/null \
   && buf lint >/dev/null \
   && buf generate \
-  && go get github.com/lynx-go/lynx-start/kernel@v0.3.0 >/dev/null \
+  && go get github.com/lynx-go/lynx-start/kernel@v0.4.0 >/dev/null \
   && go mod tidy >/dev/null \
   && go build ./... && go vet ./...) \
   || { echo "update build check failed"; exit 1; }

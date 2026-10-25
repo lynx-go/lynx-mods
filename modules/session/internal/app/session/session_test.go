@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-start/kernel/clock"
-	"github.com/lynx-go/lynx-start/kernel/events"
 	"github.com/lynx-go/lynx-start/kernel/jwt"
+	"github.com/lynx-go/lynx-start/kernel/testutil"
 	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
 	"github.com/lynx-go/lynx-start/modules/session/domain/session"
 )
@@ -115,37 +115,6 @@ func (r *fakeUserRepo) GetByEmail(_ context.Context, email string) (*identity.Us
 
 func (r *fakeUserRepo) UpdatePassword(_ context.Context, _ *identity.User) error { return nil }
 
-type fakeTx struct{}
-
-func (fakeTx) Run(_ context.Context, fn func(ctx context.Context) error) error {
-	return fn(context.Background())
-}
-
-type fakePublisher struct {
-	mu   sync.Mutex
-	evts []events.Envelope
-}
-
-func (p *fakePublisher) Publish(_ context.Context, ev events.Envelope) error {
-	if err := ev.Validate(); err != nil {
-		return err
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.evts = append(p.evts, ev)
-	return nil
-}
-
-func (p *fakePublisher) names() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	out := make([]string, len(p.evts))
-	for i, e := range p.evts {
-		out[i] = e.Name
-	}
-	return out
-}
-
 const (
 	testMaster  = "session-test-master"
 	testIssuer  = "test-issuer"
@@ -153,7 +122,7 @@ const (
 	testRefresh = time.Hour
 )
 
-func newTestUseCase(t *testing.T) (*UseCase, *fakeSessionRepo, *fakeUserRepo, *fakePublisher, *clock.Fake) {
+func newTestUseCase(t *testing.T) (*UseCase, *fakeSessionRepo, *fakeUserRepo, *testutil.CapturePublisher, *clock.Fake) {
 	t.Helper()
 	fake := clock.NewFake(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	tokens := Tokens{
@@ -165,8 +134,8 @@ func newTestUseCase(t *testing.T) (*UseCase, *fakeSessionRepo, *fakeUserRepo, *f
 	}
 	srepo := newFakeSessionRepo()
 	urepo := &fakeUserRepo{users: map[string]*identity.User{}}
-	pub := &fakePublisher{}
-	return New(srepo, urepo, fakeTx{}, pub, tokens, fake), srepo, urepo, pub, fake
+	pub := testutil.NewCapturePublisher()
+	return New(srepo, urepo, testutil.InlineRunner{}, pub, tokens, fake), srepo, urepo, pub, fake
 }
 
 func seedUser(t *testing.T, urepo *fakeUserRepo, id, email string) {
@@ -190,7 +159,7 @@ func TestCreateSession(t *testing.T) {
 	if pair.Session.UserID != "u1" || pair.Access.Value == "" || pair.Refresh.Value == "" {
 		t.Fatalf("pair = %+v", pair)
 	}
-	if got := pub.names(); len(got) != 1 || got[0] != "session.session.created" {
+	if got := pub.Names(); len(got) != 1 || got[0] != "session.session.created" {
 		t.Errorf("events = %v", got)
 	}
 	if _, err := srepo.Get(ctx, pair.Session.ID); err != nil {
@@ -300,7 +269,7 @@ func TestLogoutAllAndPasswordChanged(t *testing.T) {
 	if _, err := uc.ResolveSession(ctx, c.Session.ID); !errors.Is(err, session.ErrSessionRevoked) {
 		t.Errorf("after password change: err = %v, want ErrSessionRevoked", err)
 	}
-	last := pub.names()[len(pub.names())-1]
+	last := pub.Names()[len(pub.Names())-1]
 	if last != "session.session.revoked" {
 		t.Errorf("last event = %q, want session.session.revoked", last)
 	}

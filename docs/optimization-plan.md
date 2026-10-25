@@ -244,7 +244,7 @@
 
 ## 8. M4 —— 更新机制差异化(押注项)
 
-> 详细设计见 [m4-update-proposal.md](m4-update-proposal.md)(2026-10-25 提案,待评审)。
+> 详细设计见 [proposals/m4-update-proposal.md](proposals/m4-update-proposal.md)(2026-10-25 提案,待评审)。
 
 > shadcn 没有 update;Symfony 只有配置级 recipes:update。做到本节,lynx-start 的更新机制是品类第一。
 

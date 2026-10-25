@@ -5,7 +5,7 @@
   "modulePath": "github.com/lynx-go/lynx-start/modules/identity",
   "moduleDependencies": [],
   "goDependencies": [
-    "github.com/lynx-go/lynx-start/kernel@v0.3.0"
+    "github.com/lynx-go/lynx-start/kernel@v0.4.0"
   ],
   "configFragment": "identity:\n  secret: \"dev-only-identity-secret-change-me\"  # 令牌主密钥，生产必须更换\n  token_ttl: 30m   # 无吊销机制（v0.1），保持短时效\n  issuer: lynx-start",
   "publishedEvents": [
@@ -18,5 +18,6 @@
       "description": "身份令牌签发主密钥",
       "secret": true
     }
-  ]
+  ],
+  "kernelConstraint": ">=0.4.0"
 }

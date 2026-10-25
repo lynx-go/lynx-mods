@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-start/kernel/clock"
-	"github.com/lynx-go/lynx-start/kernel/events"
 	"github.com/lynx-go/lynx-start/kernel/jwt"
+	"github.com/lynx-go/lynx-start/kernel/testutil"
 	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
 )
 
@@ -85,51 +85,19 @@ func cloneUser(u *identity.User) *identity.User {
 	return &c
 }
 
-type fakeTx struct{}
-
-func (fakeTx) Run(_ context.Context, fn func(ctx context.Context) error) error {
-	return fn(context.Background())
-}
-
-type fakePublisher struct {
-	mu   sync.Mutex
-	evts []events.Envelope
-}
-
-func (p *fakePublisher) Publish(_ context.Context, ev events.Envelope) error {
-	// 与 kernel BusPublisher 同语义：事件名不合法即拒绝（目录约定护栏）。
-	if err := ev.Validate(); err != nil {
-		return err
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.evts = append(p.evts, ev)
-	return nil
-}
-
-func (p *fakePublisher) names() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	out := make([]string, len(p.evts))
-	for i, e := range p.evts {
-		out[i] = e.Name
-	}
-	return out
-}
-
 const (
 	testMaster = "test-master-secret"
 	testIssuer = "test-issuer"
 )
 
-func newTestUseCase(t *testing.T) (*UseCase, *fakeRepo, *fakePublisher, *clock.Fake) {
+func newTestUseCase(t *testing.T) (*UseCase, *fakeRepo, *testutil.CapturePublisher, *clock.Fake) {
 	t.Helper()
 	repo := newFakeRepo()
-	pub := &fakePublisher{}
+	pub := testutil.NewCapturePublisher()
 	fake := clock.NewFake(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
 	signer := jwt.NewSigner(testMaster, PurposeAccessToken, testIssuer, 30*time.Minute, fake)
 	verifier := jwt.NewVerifier(testMaster, PurposeAccessToken, testIssuer)
-	return New(repo, fakeTx{}, pub, signer, verifier, fake), repo, pub, fake
+	return New(repo, testutil.InlineRunner{}, pub, signer, verifier, fake), repo, pub, fake
 }
 
 func TestRegister(t *testing.T) {
@@ -158,7 +126,7 @@ func TestRegister(t *testing.T) {
 	if claims.Custom["email"] != "alice@example.com" {
 		t.Errorf("custom email claim = %q", claims.Custom["email"])
 	}
-	if got := pub.names(); len(got) != 1 || got[0] != "identity.user.created" {
+	if got := pub.Names(); len(got) != 1 || got[0] != "identity.user.created" {
 		t.Errorf("events = %v, want [identity.user.created]", got)
 	}
 }
@@ -273,7 +241,7 @@ func TestChangePassword(t *testing.T) {
 	if _, _, err := uc.Login(ctx, "dave@example.com", "new-correct-horse"); err != nil {
 		t.Errorf("new password login: %v", err)
 	}
-	if got := pub.names(); len(got) != 2 || got[1] != "identity.user.password-changed" {
+	if got := pub.Names(); len(got) != 2 || got[1] != "identity.user.password-changed" {
 		t.Errorf("events = %v, want identity.user.password-changed as second", got)
 	}
 }

@@ -306,3 +306,27 @@ import todo "<app-module-path>/internal/api/todo"
 
 改完跑 `mise run lint && mise run test`。你的 guard_test 会拦住越界的
 import（domain 不许 import infra/app/api）。
+
+## 6. 替换模块内部实现(定制姿势)
+
+源码归你,直接改就是正道;但不同改法与 `lynx-start update` 三方合并的相处
+难度不同。按摩擦从低到高:
+
+| 想改什么 | 推荐姿势 | update 冲突风险 |
+|---|---|---|
+| 仓储实现细节(某条 SQL/索引提示) | 直接改 `internal/infra/<m>/repo.go` | 低——upstream 少动这里,动了你也有明确语义优势 |
+| 换整套存储实现 | 新建 `repo2.go` 实现同一 domain 端口,旧文件留着不动;只在装配层换构造 | 低——新增文件 update 天然保留(本地独有文件不参与合并) |
+| 换哈希/签名/密码学参数 | **不要改模块**——这类实现住在 kernel,`go get kernel@vX` 升级即可 | 无 |
+| 用例流程/业务规则 | 直接改 `internal/app/<m>` | 中——upstream 演进主区,但三方合并对「你改你的、上游修上游」友好 |
+| 装配接线(构造参数/依赖替换) | 改 `internal/api/<m>/module.go` 的 Assemble | **高——这是 upstream 热区**,改动保持最小(换构造一行),别顺手重构 |
+
+要点:
+
+- **新增文件零冲突**:合并只处理「安装基线里登记过的文件」;你新建的文件
+  (repo2.go、额外的适配器)永远原样保留;
+- **改 Assemble 前先想清楚**:它是模块与 kernel 的接缝,upstream 每版都可能
+  动;若确要换实现,把「新实现文件」与「接线一行」分开提交,冲突时只需重放
+  接线那一行;
+- **domain 端口是你的稳定锚**:只要端口签名不动,infra 随便换——这正是契约
+  ②「跨模块只依赖 domain」给你自己的定制同样的保护;
+- 定制后跑 `lynx-start doctor`(基线/锁仍完整)与 `go build ./...`。

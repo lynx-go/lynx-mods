@@ -333,3 +333,32 @@ Registering is one command (item.json skeleton / registry.json / go.work kept co
 
 After changes run `mise run lint && mise run test`. Your guard_test will catch
 out-of-bounds imports (domain must not import infra/app/api).
+
+## 6. Replacing a module's internals (customization recipes)
+
+The code is yours — editing directly is the intended path. But different edits
+co-exist with `lynx-start update`'s three-way merge at different friction
+levels, from low to high:
+
+| What you want | Recommended recipe | Update-conflict risk |
+|---|---|---|
+| Repository detail (one SQL / index hint) | Edit `internal/infra/<m>/repo.go` in place | Low — upstream rarely touches it, and your edit has clear intent |
+| Swap the whole storage implementation | Add `repo2.go` implementing the same domain port; leave the old file alone; swap the constructor in the assembly layer only | Low — new files never participate in the merge (local-only files are preserved untouched) |
+| Hashing / signing / crypto parameters | **Do not edit the module** — such implementations live in kernel; bump with `go get kernel@vX` | None |
+| Use-case flow / business rules | Edit `internal/app/<m>` directly | Medium — the upstream's main evolution zone, but three-way merge handles "yours vs theirs" well |
+| Assembly wiring (constructor args / dependency swap) | Edit Assemble in `internal/api/<m>/module.go` | **High — this is the upstream hot zone**. Keep edits minimal (the one constructor line); do not refactor while you are there |
+
+Key points:
+
+- **New files never conflict**: merging only touches files registered in the
+  install baseline; files you add (repo2.go, extra adapters) survive every
+  update untouched;
+- **Think before editing Assemble**: it is the seam between the module and the
+  kernel, and upstream may touch it every release. If you swap an
+  implementation, commit the new-implementation file and the one wiring line
+  separately — on conflict you only replay the wiring;
+- **The domain port is your stable anchor**: as long as the port signature
+  stays, swap infra freely — contract 2 ("cross-module depends on domain
+  only") protects your customization exactly as it protects modules;
+- After customizing run `lynx-start doctor` (baseline/lock intact) and
+  `go build ./...`.
