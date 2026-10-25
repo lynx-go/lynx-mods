@@ -78,7 +78,9 @@ audit:
 session:
   z: 3
 `
-	os.MkdirAll(filepath.Dir(p), 0o755)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(p, []byte(tmpl), 0o644); err != nil {
 		t.Fatal(err)
 	}
