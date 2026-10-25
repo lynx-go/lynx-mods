@@ -110,5 +110,14 @@ buf lint
 buf generate
 go mod tidy >/dev/null
 go build ./... && go vet ./... && go test ./...
-echo "scaffold e2e: OK（init→add→generate→build→vet→test 全绿）"
+# remove/doctor e2e：负路径（identity 被 session/access 依赖必须拒绝）、
+# 正路径（audit 无依赖方：卸载→编译→doctor 全绿）。
+(cd "$WORK/e2eapp" \
+  && ! "$WORK/lyx" remove identity --registry "$ROOT" >/dev/null 2>&1 \
+  && "$WORK/lyx" remove audit --registry "$ROOT" >/dev/null \
+  && go build ./... && go vet ./...) \
+  || { echo "remove check failed"; exit 1; }
+"$WORK/lyx" doctor --dir "$WORK/e2eapp" --registry "$ROOT" >/dev/null \
+  || { echo "doctor check failed"; exit 1; }
+echo "scaffold e2e: OK（init→add→generate→build→vet→test + update/remove/doctor 全绿）"
 '''

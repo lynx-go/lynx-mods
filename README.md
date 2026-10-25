@@ -40,6 +40,10 @@ lynx-start add audit --registry <本仓库目录>      # 审计：RPC 拦截器�
 git add -A && git commit -m wip    # update 写盘不可回滚，先 commit
 lynx-start update identity --registry <本仓库目录>
 
+# 体检（modules.go/config/基线/依赖一致性）与卸载
+lynx-start doctor --registry <本仓库目录>
+lynx-start remove audit --registry <本仓库目录>   # DAG 反向校验；迁移表保留（数据安全）
+
 # 跑起来（顺序重要：genproto 未生成时 go mod tidy 必失败；mise 钉版 go/buf）
 mise install && mise trust
 mise run generate               # buf dep update + lint + generate → genproto/
@@ -106,7 +110,6 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 ## Roadmap
 
-- `lynx-start remove` / `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
 - 远端 registry（本地 git tag 版本 pin 已支持：`add <m>@<ver>` / `update`；远端仓库解析后续接入）
 - 下一批业务模块（SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 
