@@ -18,6 +18,8 @@
 5. **发版**:`git tag modules/<name>/v<x.y.z>`(tag 必须指向 item.json 已写
    该版本的提交,安装器校验漂移);推送 tag 自动建 GitHub Release。
 
+组合预设(preset)在 `registry/presets.json` 登记(组合顺序即安装顺序)。
+
 ## 安全公告 / Security advisories
 
 模块安装即断连,已装用户**只能靠公告**得知安全修复。修复合入后,在

@@ -33,6 +33,7 @@ export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
 lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
 lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
+lynx-start init myapp-saas --preset saas --registry <本仓库目录>  # 或：一条命令装齐 SaaS 账号底座（identity+session+access+audit）
 lynx-start add identity@0.1.1 --registry <本仓库目录>  # 可选：钉版本安装（git tag）
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
@@ -161,6 +162,7 @@ export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
 lynx-start init myapp --module github.com/acme/myapp --registry <this-repo>
 cd myapp
 lynx-start add demo --registry <this-repo>      # sample: verifies the assembly pipeline
+lynx-start init myapp-saas --preset saas --registry <this-repo>  # or: one command installs the SaaS account base (identity+session+access+audit)
 lynx-start add identity@0.1.1 --registry <this-repo>  # optional: pin a version (git tag)
 lynx-start add session --registry <this-repo>    # revocable session token pair (depends on identity, validated by the installer)
 lynx-start add access --registry <this-repo>     # authorization: RBAC + claims injection (depends on identity)

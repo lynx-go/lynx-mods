@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lynx-go/lynx-start/cli/internal/lock"
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
 	"github.com/lynx-go/lynx-start/cli/internal/registry"
 	"github.com/lynx-go/lynx-start/cli/internal/render"
@@ -163,6 +164,19 @@ func cmdAdd(args []string) error {
 	sort.Strings(files)
 	if err := syncBaseline(appDir, item.Name, res); err != nil {
 		return fmt.Errorf("snapshot install baseline: %w", err)
+	}
+	// 供应链锁：版本溯源（tag/worktree + commit）与基线 sha256（update 合并
+	// 锚的防篡改）。
+	lk, err := lock.Load(appDir)
+	if err != nil {
+		return err
+	}
+	source, commit := lock.ResolveCommit(*registryDir, item.Name, version)
+	if err := lk.Record(baselineDir(appDir, item.Name), item.Name, item.Version, source, commit); err != nil {
+		return err
+	}
+	if err := lk.Save(appDir); err != nil {
+		return err
 	}
 	m.Set(manifest.Module{Name: item.Name, Version: item.Version, Files: files})
 	if err := m.Save(appDir); err != nil {

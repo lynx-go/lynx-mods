@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lynx-go/lynx-start/cli/internal/lock"
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
 	"github.com/lynx-go/lynx-start/cli/internal/merge"
 	"github.com/lynx-go/lynx-start/cli/internal/registry"
@@ -70,6 +71,21 @@ func cmdUpdate(args []string) error {
 	if item.Version == installed.Version && !*force {
 		fmt.Printf("✓ %s already at %s (use --force to re-sync the baseline from the registry worktree)\n", name, item.Version)
 		return nil
+	}
+	// 供应链锁复核：基线是三方合并的锚，被篡改会静默污染合并——哈希不符
+	// 即拒绝（旧应用无锁条目时跳过，与基线前时代兼容）。
+	lk, err := lock.Load(appDir)
+	if err != nil {
+		return err
+	}
+	if entry, ok := lk.Modules[name]; ok {
+		mismatch, err := entry.Mismatch(baselineDir(appDir, name))
+		if err != nil {
+			return err
+		}
+		if len(mismatch) > 0 {
+			return fmt.Errorf("baseline for %s drifted from .lynx-start/lock.json (tampered or hand-edited): %s — rebuild with `lynx-start add %s -o` (overwrites local files; commit first)", name, strings.Join(mismatch, ", "), name)
+		}
 	}
 	base, hasBase, err := loadBaselineTree(appDir, name)
 	if err != nil {
@@ -177,6 +193,13 @@ func cmdUpdate(args []string) error {
 	}
 	sort.Strings(files)
 	if err := replaceBaselineTree(appDir, name, other); err != nil {
+		return err
+	}
+	source, commit := lock.ResolveCommit(*registryDir, name, version)
+	if err := lk.Record(baselineDir(appDir, name), name, item.Version, source, commit); err != nil {
+		return err
+	}
+	if err := lk.Save(appDir); err != nil {
 		return err
 	}
 	m.Set(manifest.Module{Name: name, Version: item.Version, Files: files})

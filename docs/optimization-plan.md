@@ -210,7 +210,7 @@
 
 ## 7. M3 —— 源码分发的及格线(供应链与版本求解)
 
-> **状态:主体已交付(2026-10-25,第三批)。** I-13(advisories + audit 门禁 + doctor ⚠,首条真实公告回填)、I-16(moduleDependencies 版本范围 + kernelConstraint,安装期强制,session 真实约束回填)、I-15(env 声明全生命周期)落地并实测;I-14(lockfile/内容哈希)未做,是及格线最后一块;I-17(preset)未动。
+> **状态:全部交付(M3 完结,2026-10-25 第三、四批)。** I-13(advisories + audit 门禁 + doctor ⚠)、I-16(版本范围 + kernelConstraint 安装期强制)、I-15(env 声明全生命周期)、I-14(lock.json:tag/worktree 溯源 + commit + 基线 sha256,update 篡改拦截 + doctor 复核)、I-17(preset saas + init --preset)全部落地并实测。剩余 M4 押注项。
 
 > 不做这三项,认真评估的团队会一票否决:断连模块的安全修复必须可通知(I-13)、贴源码必须可审计(I-14)、依赖必须可求解(I-16)。
 

@@ -274,6 +274,44 @@ type Advisories struct {
 	Advisories []Advisory `json:"advisories"`
 }
 
+// Preset 是 registry/presets.json 中的一组预置组合（init --preset 一次装齐）。
+type Preset struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Modules     []string `json:"modules"`
+}
+
+// Presets 是预置组合集合。
+type Presets struct {
+	Presets []Preset `json:"presets"`
+}
+
+// LoadPresets 读 registryDir/registry/presets.json；文件不存在视为空集合。
+func LoadPresets(registryDir string) (*Presets, error) {
+	raw, err := os.ReadFile(filepath.Join(registryDir, "registry", "presets.json"))
+	if os.IsNotExist(err) {
+		return &Presets{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load presets: %w", err)
+	}
+	var out Presets
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse presets.json: %w", err)
+	}
+	return &out, nil
+}
+
+// Find 按名查预置组合。
+func (p *Presets) Find(name string) (Preset, bool) {
+	for _, ps := range p.Presets {
+		if ps.Name == name {
+			return ps, true
+		}
+	}
+	return Preset{}, false
+}
+
 // LoadAdvisories 读 registryDir/registry/advisories.json；文件不存在视为
 // 空集合（私有 registry 可不携带公告）。
 func LoadAdvisories(registryDir string) (*Advisories, error) {

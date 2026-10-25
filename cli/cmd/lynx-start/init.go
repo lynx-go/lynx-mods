@@ -30,7 +30,8 @@ func cmdInit(args []string) error {
 	module := fs.String("module", "", "Go module path (default example.com/<name>)")
 	registryDir := fs.String("registry", os.Getenv("LYNXSTART_REGISTRY"), "lynx-start repo directory (containing scaffold/ and registry/)")
 	force := fs.Bool("force", false, "continue even if the target directory is non-empty")
-	args = reorderArgs(map[string]bool{"module": true, "registry": true}, args)
+	preset := fs.String("preset", "", "install a preset module combo (see lynx-start list)")
+	args = reorderArgs(map[string]bool{"module": true, "registry": true, "preset": true}, args)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -92,6 +93,25 @@ func cmdInit(args []string) error {
 		return err
 	}
 
+	// 预置组合（I-17）：一条命令装齐一组模块（组合内顺序即安装顺序，
+	// 依赖由安装器校验）。清单已保存，直接复用 cmdAdd。
+	if *preset != "" {
+		presets, err := registry.LoadPresets(resolved)
+		if err != nil {
+			return err
+		}
+		ps, ok := presets.Find(*preset)
+		if !ok {
+			return fmt.Errorf("preset %q not found in registry (see lynx-start list)", *preset)
+		}
+		fmt.Printf("\ninstalling preset %s: %s\n", ps.Name, strings.Join(ps.Modules, " "))
+		for _, mod := range ps.Modules {
+			if err := cmdAdd([]string{mod, "--registry", *registryDir, "--dir", appName}); err != nil {
+				return fmt.Errorf("preset %s: %w", ps.Name, err)
+			}
+		}
+	}
+
 	fmt.Printf("\n✓ app skeleton ready: %s (%d files, %d skipped)\n", target, len(res.Created), len(res.Skipped))
 	fmt.Printf(`Next steps:
   cd %s
@@ -132,6 +152,12 @@ func cmdList(args []string) error {
 			deps = "  deps: " + strings.Join(parts, ", ")
 		}
 		fmt.Printf("  %-16s %-8s %s%s\n", item.Name, item.Version, item.Description, deps)
+	}
+	if presets, err := registry.LoadPresets(regDir); err == nil && len(presets.Presets) > 0 {
+		fmt.Println("presets:")
+		for _, ps := range presets.Presets {
+			fmt.Printf("  %-16s %s\n", "--preset "+ps.Name, strings.Join(ps.Modules, " "))
+		}
 	}
 	return nil
 }

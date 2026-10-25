@@ -1,0 +1,9 @@
+{
+  "presets": [
+    {
+      "name": "saas",
+      "description": "SaaS 账号底座：认证 + 可吊销会话 + RBAC + 审计",
+      "modules": ["identity", "session", "access", "audit"]
+    }
+  ]
+}

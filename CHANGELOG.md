@@ -6,6 +6,18 @@
 
 ## Unreleased
 
+- **M3 完结(2026-10-25 第四批)**:
+  - I-14 供应链锁 `.lynx-start/lock.json`:每模块记解析版本、来源
+    (tag/worktree)与 commit、基线文件 sha256。add/update 写入;update
+    合并前复核基线哈希——被篡改的基线会静默污染三方合并,现在 fail-closed
+    并给出重建指引;doctor 复核条目在、哈希符、钉版 tag 未移动;remove
+    清理。实测:篡改基线后 update 被拒,doctor 全绿态零误报。
+  - I-17 preset:`registry/presets.json` + `lynx-start init --preset saas`
+    一次装齐组合(组合顺序即安装顺序,依赖由安装器校验);`list` 展示
+    presets;首个预设 saas(identity+session+access+audit)四模块全链路实测。
+  - 修复:doctor 改按已装版本解析 item(tag 冻结形态——工作区 item 声明的
+    新版 env/约束拿来校验旧安装会误报);tag 漂移检查只对 tag 安装条目
+    (worktree 记 HEAD,与旧 tag 比对无意义)。
 - **M3 及格线(2026-10-25 第三批)**:
   - I-13 安全公告通道:`registry/advisories.json`(affectedVersions 精确
     匹配,不做范围解析)+ 新命令 `lynx-start audit`(命中即非零退出,

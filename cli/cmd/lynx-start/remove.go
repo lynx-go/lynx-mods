@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/lynx-go/lynx-start/cli/internal/lock"
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
 )
 
@@ -139,6 +140,12 @@ func cmdRemove(args []string) error {
 			}
 		}
 		m.Modules = kept
+		if lk, err := lock.Load(appDir); err == nil {
+			lk.Remove(name)
+			if err := lk.Save(appDir); err != nil {
+				return err
+			}
+		}
 		if err := m.Save(appDir); err != nil {
 			return err
 		}

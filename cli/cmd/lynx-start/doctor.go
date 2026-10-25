@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/lynx-go/lynx-start/cli/internal/lock"
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
 	"github.com/lynx-go/lynx-start/cli/internal/registry"
 )
@@ -82,15 +83,18 @@ func cmdDoctor(args []string) error {
 
 	// 2) 每个已装模块：依赖已装、config 段在、Files 在应用、基线完整。
 	for _, mod := range m.Modules {
-		item, err := idx.Item(*registryDir, mod.Name)
+		// 按已装版本解析 item（tag 冻结形态）：工作区 item 可能声明了新版才有的
+		// env/依赖约束，拿它校验旧安装会误报。
+		item, cleanupItem, err := idx.ItemAt(*registryDir, mod.Name, mod.Version)
 		if err != nil {
-			check(false, "registry knows %s: %v", mod.Name, err)
+			check(false, "registry knows %s@%s: %v", mod.Name, mod.Version, err)
 			continue
 		}
+		defer cleanupItem()
 		for _, dep := range item.ModuleDependencies {
 			installedDep, has := m.Get(dep.Name)
 			check(has, "%s dependency %s installed", mod.Name, dep.Name)
-			if has {
+			if has && dep.Min != "" {
 				check(dep.Meets(installedDep.Version), "%s dependency %s >=%s (installed %s)", mod.Name, dep.Name, dep.Min, installedDep.Version)
 			}
 		}
@@ -136,6 +140,23 @@ func cmdDoctor(args []string) error {
 			}
 			check(baseGone == 0, "%s baseline intact (%d of %d missing)", mod.Name, baseGone, len(mod.Files))
 		}
+		// 供应链锁（I-14）：条目在、基线哈希符、钉版 tag 未移动。
+		lk, lkErr := lock.Load(appDir)
+		if lkErr != nil {
+			check(false, "%s lock loads: %v", mod.Name, lkErr)
+		} else if entry, ok := lk.Modules[mod.Name]; ok {
+			mismatch, err := entry.Mismatch(baselineDir(appDir, mod.Name))
+			check(err == nil && len(mismatch) == 0, "%s baseline matches lock (%s)", mod.Name, strings.Join(mismatch, ", "))
+			// tag 漂移检查只对「从 tag 安装」的条目——worktree 安装记的是当时
+			// HEAD,与同名旧 tag 比对没有意义。
+			if strings.HasPrefix(entry.Source, "tag ") && entry.Commit != "" {
+				if cur, exists := lock.TagCommit(*registryDir, mod.Name, mod.Version); exists && cur != entry.Commit {
+					check(false, "%s tag modules/%s/v%s unmoved (installed from %s, now %s)", mod.Name, mod.Name, mod.Version, shortHash(entry.Commit), shortHash(cur))
+				}
+			}
+		} else {
+			check(false, "%s lock entry present (update or add -o to create)", mod.Name)
+		}
 	}
 
 	// 3) 安全公告：只提示不计数（体检不过载）；CI 门禁用 lynx-start audit。
@@ -177,4 +198,12 @@ func registeredModuleNames(src string) []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// shortHash 缩短 commit hash 供诊断输出。
+func shortHash(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
 }
