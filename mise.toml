@@ -79,6 +79,8 @@ WORK2="$(mktemp -d)"
 (cd "$WORK2" \
   && "$WORK/lyx" init depapp --module example.com/depapp --registry "$ROOT" >/dev/null \
   && cd depapp \
+  && ! "$WORK/lyx" add session --registry "$ROOT" >/dev/null 2>&1 \
+  && "$WORK/lyx" add identity@0.1.0 --registry "$ROOT" >/dev/null \
   && ! "$WORK/lyx" add session --registry "$ROOT" >/dev/null 2>&1) \
   || { echo "dependency check failed"; exit 1; }
 rm -rf "$WORK2"

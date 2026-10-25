@@ -11,5 +11,12 @@
   "publishedEvents": [
     "identity.user.created",
     "identity.user.password-changed"
+  ],
+  "env": [
+    {
+      "key": "IDENTITY_SECRET",
+      "description": "身份令牌签发主密钥",
+      "secret": true
+    }
   ]
 }

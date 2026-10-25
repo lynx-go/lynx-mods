@@ -1,0 +1,12 @@
+{
+  "advisories": [
+    {
+      "id": "LYNXSTART-0001",
+      "module": "identity",
+      "affectedVersions": ["0.1.0"],
+      "fixed": "0.1.1",
+      "severity": "medium",
+      "summary": "登录时序对齐的 Argon2id 哑靶常量写死在模块源码内：kernel 升级哈希参数后哑靶失配，时序对齐静默失效（未知邮箱与已知邮箱的响应时序可区分，用户枚举侧信道）。修复改调 kernel/password.DummyHash()（参数恒同参）。"
+    }
+  ]
+}

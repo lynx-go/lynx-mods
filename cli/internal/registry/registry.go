@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -32,13 +33,121 @@ type Item struct {
 	// ModulePath 是模块源码的规范 Go module path（模块在本仓内以真实代码
 	// 形态维护，自带 go.mod 与 genproto）；安装时 lynx-start add 把 .go/.proto 中
 	// 的该路径改写为应用 module path。
-	ModulePath         string   `json:"modulePath"`
-	ModuleDependencies []string `json:"moduleDependencies"`
-	GoDependencies     []string `json:"goDependencies"`
-	ConfigFragment     string   `json:"configFragment"`
-	PublishedEvents    []string `json:"publishedEvents"`
+	ModulePath string `json:"modulePath"`
+	// ModuleDependencies 声明 domain 级依赖。JSON 双形态：
+	//   ["identity"]                —— 无版本约束（旧形态）
+	//   [{"identity": ">=0.1.1"}]   —— 最低版本约束（安装期校验已装版本）
+	ModuleDependencies Dependencies `json:"moduleDependencies"`
+	// KernelConstraint 声明模块需要的 kernel 最低版本（如 ">=0.3.0"）；
+	// add 时校验应用 go.mod 的 kernel require，doctor 复核。
+	KernelConstraint string   `json:"kernelConstraint"`
+	GoDependencies   []string `json:"goDependencies"`
+	ConfigFragment   string   `json:"configFragment"`
+	PublishedEvents  []string `json:"publishedEvents"`
+	// Env 声明模块需要的 应用环境变量（add 时写进 .env.example；
+	// Secret 为 true 生成随机占位，生产必须更换）。
+	Env []EnvVar `json:"env"`
 	// Dir 是模块源码模板目录（加载时填充）。
 	Dir string `json:"-"`
+}
+
+// EnvVar 是 item.json 的 env 声明。
+type EnvVar struct {
+	Key         string `json:"key"`
+	Description string `json:"description"`
+	Secret      bool   `json:"secret,omitempty"`
+}
+
+// Dependency 是单个 domain 级依赖声明。
+type Dependency struct {
+	Name string // 依赖模块名
+	Min  string // 最低版本（"0.1.1"，无约束时空串）
+}
+
+// Dependencies 兼容 JSON 数组的字符串/对象混合形态。
+type Dependencies []Dependency
+
+// UnmarshalJSON 接受 ["a", {"b": ">=0.1.0"}] 混合数组。
+func (d *Dependencies) UnmarshalJSON(raw []byte) error {
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return err
+	}
+	out := make(Dependencies, 0, len(entries))
+	for _, e := range entries {
+		var s string
+		if err := json.Unmarshal(e, &s); err == nil {
+			out = append(out, Dependency{Name: s})
+			continue
+		}
+		var obj map[string]string
+		if err := json.Unmarshal(e, &obj); err != nil {
+			return fmt.Errorf(`moduleDependencies entry must be a name or {name: ">=x.y.z"}: %s`, e)
+		}
+		for name, constraint := range obj {
+			dep := Dependency{Name: name}
+			if constraint != "" {
+				min, err := ParseConstraint(constraint)
+				if err != nil {
+					return fmt.Errorf("moduleDependencies %q: %w", name, err)
+				}
+				dep.Min = min
+			}
+			out = append(out, dep)
+		}
+	}
+	*d = out
+	return nil
+}
+
+// ParseConstraint 解析约束表达式；v1 只支持 ">=x.y.z"（含等于）。
+func ParseConstraint(c string) (string, error) {
+	if min, ok := strings.CutPrefix(c, ">="); ok {
+		if !semverRe.MatchString(min) {
+			return "", fmt.Errorf("constraint %q: want >=x.y.z", c)
+		}
+		return min, nil
+	}
+	return "", fmt.Errorf("constraint %q: only >=x.y.z is supported", c)
+}
+
+var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+// CompareVersions 比较两个 x.y.z；非法输入按 0.0.0 处理。
+func CompareVersions(a, b string) int {
+	parse := func(v string) [3]int {
+		var out [3]int
+		parts := strings.SplitN(strings.TrimPrefix(v, "v"), ".", 3)
+		for i := 0; i < 3 && i < len(parts); i++ {
+			n := 0
+			for _, r := range parts[i] {
+				if r < '0' || r > '9' {
+					break
+				}
+				n = n*10 + int(r-'0')
+			}
+			out[i] = n
+		}
+		return out
+	}
+	pa, pb := parse(a), parse(b)
+	for i := 0; i < 3; i++ {
+		if pa[i] != pb[i] {
+			if pa[i] < pb[i] {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+// Meets 报告 installed 满足依赖的最低版本要求。
+func (d Dependency) Meets(installed string) bool {
+	if d.Min == "" {
+		return true
+	}
+	return CompareVersions(installed, d.Min) >= 0
 }
 
 // CanonicalModulePath 返回模块的规范路径（缺省推导）。
@@ -144,6 +253,59 @@ func loadItem(dir, name string) (*Item, error) {
 		item.Name = name
 	}
 	return &item, nil
+}
+
+// LoadItem 导出 loadItem 供 registry add/check 命令（贡献者工具）使用。
+func LoadItem(dir, name string) (*Item, error) { return loadItem(dir, name) }
+
+// Advisory 是 registry/advisories.json 中的一条安全公告：affectedVersions
+// 精确列出受影响版本（0.x 世界不做范围解析），fixed 是修复版本。
+type Advisory struct {
+	ID               string   `json:"id"`
+	Module           string   `json:"module"`
+	AffectedVersions []string `json:"affectedVersions"`
+	Fixed            string   `json:"fixed"`
+	Severity         string   `json:"severity"`
+	Summary          string   `json:"summary"`
+}
+
+// Advisories 是公告集合。
+type Advisories struct {
+	Advisories []Advisory `json:"advisories"`
+}
+
+// LoadAdvisories 读 registryDir/registry/advisories.json；文件不存在视为
+// 空集合（私有 registry 可不携带公告）。
+func LoadAdvisories(registryDir string) (*Advisories, error) {
+	raw, err := os.ReadFile(filepath.Join(registryDir, "registry", "advisories.json"))
+	if os.IsNotExist(err) {
+		return &Advisories{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load advisories: %w", err)
+	}
+	var out Advisories
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse advisories.json: %w", err)
+	}
+	return &out, nil
+}
+
+// Hits 返回影响指定已装版本的公告。
+func (a *Advisories) Hits(module, installedVersion string) []Advisory {
+	var out []Advisory
+	for _, adv := range a.Advisories {
+		if adv.Module != module {
+			continue
+		}
+		for _, v := range adv.AffectedVersions {
+			if v == installedVersion {
+				out = append(out, adv)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // untar 解 git archive 生成的 tar 流（仅文件与目录，拒绝异常路径）。

@@ -121,7 +121,15 @@ func cmdList(args []string) error {
 		}
 		deps := ""
 		if len(item.ModuleDependencies) > 0 {
-			deps = "  deps: " + strings.Join(item.ModuleDependencies, ", ")
+			var parts []string
+			for _, dep := range item.ModuleDependencies {
+				if dep.Min != "" {
+					parts = append(parts, dep.Name+">="+dep.Min)
+				} else {
+					parts = append(parts, dep.Name)
+				}
+			}
+			deps = "  deps: " + strings.Join(parts, ", ")
 		}
 		fmt.Printf("  %-16s %-8s %s%s\n", item.Name, item.Version, item.Description, deps)
 	}

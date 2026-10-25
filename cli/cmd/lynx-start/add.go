@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"go/format"
@@ -72,10 +74,29 @@ func cmdAdd(args []string) error {
 	}
 	defer cleanup()
 
-	// 模块依赖（domain 级 DAG）必须已装。
+	// 模块依赖（domain 级 DAG）必须已装，且满足声明的最低版本
+	//（item.json 的 [{"identity": ">=0.1.1"}] 形态）——把启动期 fail-closed
+	// 前移到安装期。
 	for _, dep := range item.ModuleDependencies {
-		if !m.Has(dep) {
-			return fmt.Errorf("module %s depends on %s: run lynx-start add %s first", name, dep, dep)
+		if !m.Has(dep.Name) {
+			return fmt.Errorf("module %s depends on %s: run lynx-start add %s first", name, dep.Name, dep.Name)
+		}
+		if installed, ok := m.Get(dep.Name); ok && !dep.Meets(installed.Version) {
+			return fmt.Errorf("module %s requires %s >=%s (installed %s): run lynx-start update %s first", name, dep.Name, dep.Min, installed.Version, dep.Name)
+		}
+	}
+	// kernel 地板：模块声明的 kernelConstraint 对照应用 go.mod 的 require。
+	if item.KernelConstraint != "" {
+		min, err := registry.ParseConstraint(item.KernelConstraint)
+		if err != nil {
+			return fmt.Errorf("%s item.json kernelConstraint: %w", name, err)
+		}
+		have, err := appKernelVersion(appDir)
+		if err != nil {
+			return err
+		}
+		if registry.CompareVersions(have, min) < 0 {
+			return fmt.Errorf("module %s requires kernel >=%s (app go.mod has %s): run go get github.com/lynx-go/lynx-start/kernel@v%s", name, min, have, min)
 		}
 	}
 	already := m.Has(name)
@@ -91,7 +112,7 @@ func cmdAdd(args []string) error {
 	//    包（如 session → identity），依赖方必已安装（上面已校验）。
 	prefixes := [][]byte{[]byte(item.CanonicalModulePath() + "/")}
 	for _, dep := range item.ModuleDependencies {
-		depItem, err := idx.Item(*registryDir, dep)
+		depItem, err := idx.Item(*registryDir, dep.Name)
 		if err != nil {
 			return err
 		}
@@ -127,6 +148,9 @@ func cmdAdd(args []string) error {
 			return err
 		}
 		// 3) config.yaml 追加模块配置段（幂等）。
+		if err := appendEnvExample(appDir, m, item); err != nil {
+			fmt.Printf("warn: env example skipped: %v\n", err)
+		}
 		if err := appendConfigFragment(appDir, name, item.ConfigFragment); err != nil {
 			return err
 		}
@@ -244,4 +268,63 @@ func registryLoad(dir string) (*registry.Index, string, error) {
 	}
 	idx, err := registry.Load(resolved)
 	return idx, resolved, err
+}
+
+// appKernelVersion 读应用 go.mod 里 kernel 的 require 版本（缺失返回
+// "0.0.0"——约束校验会给出可行动报错）。
+func appKernelVersion(appDir string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(appDir, "go.mod"))
+	if err != nil {
+		return "", fmt.Errorf("read app go.mod: %w", err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if rest, ok := strings.CutPrefix(line, "github.com/lynx-go/lynx-start/kernel "); ok {
+			v := strings.TrimSpace(strings.Split(rest, " ")[0])
+			return strings.TrimPrefix(v, "v"), nil
+		}
+	}
+	return "0.0.0", nil
+}
+
+// appendEnvExample 把模块声明的 env 变量追加进 .env.example（幂等；Secret
+// 变量生成随机占位——example 文件不入真值，生产由应用自行更换）。变量名
+// 带应用前缀（与 config 环境覆盖约定一致：identity.secret → <P>_IDENTITY_SECRET）。
+func appendEnvExample(appDir string, m *manifest.Manifest, item *registry.Item) error {
+	if len(item.Env) == 0 {
+		return nil
+	}
+	prefix := strings.ToUpper(strings.ReplaceAll(m.Name, "-", "_"))
+	path := filepath.Join(appDir, ".env.example")
+	src := ""
+	if raw, err := os.ReadFile(path); err == nil {
+		src = string(raw)
+	}
+	var block strings.Builder
+	for _, e := range item.Env {
+		name := prefix + "_" + e.Key
+		if strings.Contains(src, name+"=") {
+			continue
+		}
+		value := ""
+		if e.Secret {
+			buf := make([]byte, 16)
+			if _, err := rand.Read(buf); err != nil {
+				return fmt.Errorf("generate %s: %w", name, err)
+			}
+			value = hex.EncodeToString(buf)
+		}
+		desc := e.Description
+		if e.Secret {
+			desc += " (secret — rotate for production)"
+		}
+		fmt.Fprintf(&block, "\n# module %s: %s\n%s=%s\n", item.Name, desc, name, value)
+	}
+	if block.Len() == 0 {
+		return nil
+	}
+	if src != "" && !strings.HasSuffix(src, "\n") {
+		src += "\n"
+	}
+	return os.WriteFile(path, []byte(src+block.String()), 0o644)
 }

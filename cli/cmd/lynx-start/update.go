@@ -164,6 +164,9 @@ func cmdUpdate(args []string) error {
 	if err := injectModulesEntry(appDir, name, m.ModulePath); err != nil {
 		fmt.Printf("warn: modules.go injection skipped: %v\n", err)
 	}
+	if err := appendEnvExample(appDir, m, item); err != nil {
+		fmt.Printf("warn: env example skipped: %v\n", err)
+	}
 	if err := appendConfigFragment(appDir, name, item.ConfigFragment); err != nil {
 		fmt.Printf("warn: config fragment skipped: %v\n", err)
 	}
@@ -208,7 +211,7 @@ func cmdUpdate(args []string) error {
 func renderUpstream(idx *registry.Index, registryDir string, item *registry.Item, m *manifest.Manifest, dst string) error {
 	prefixes := [][]byte{[]byte(item.CanonicalModulePath() + "/")}
 	for _, dep := range item.ModuleDependencies {
-		depItem, err := idx.Item(registryDir, dep)
+		depItem, err := idx.Item(registryDir, dep.Name)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
+	"github.com/lynx-go/lynx-start/cli/internal/registry"
 )
 
 // cmdDoctor: lynx-start doctor —— 应用与安装清单的一致性体检（只读）：
@@ -87,7 +88,29 @@ func cmdDoctor(args []string) error {
 			continue
 		}
 		for _, dep := range item.ModuleDependencies {
-			check(m.Has(dep), "%s dependency %s installed", mod.Name, dep)
+			installedDep, has := m.Get(dep.Name)
+			check(has, "%s dependency %s installed", mod.Name, dep.Name)
+			if has {
+				check(dep.Meets(installedDep.Version), "%s dependency %s >=%s (installed %s)", mod.Name, dep.Name, dep.Min, installedDep.Version)
+			}
+		}
+		if item.KernelConstraint != "" {
+			if min, err := registry.ParseConstraint(item.KernelConstraint); err == nil {
+				have, err := appKernelVersion(appDir)
+				check(err == nil && registry.CompareVersions(have, min) >= 0,
+					"%s kernelConstraint >=%s satisfied (go.mod has %s)", mod.Name, min, have)
+			} else {
+				check(false, "%s kernelConstraint parses: %v", mod.Name, err)
+			}
+		}
+		envExample := ""
+		if raw, err := os.ReadFile(filepath.Join(appDir, ".env.example")); err == nil {
+			envExample = string(raw)
+		}
+		envPrefix := strings.ToUpper(strings.ReplaceAll(m.Name, "-", "_"))
+		for _, e := range item.Env {
+			check(strings.Contains(envExample, envPrefix+"_"+e.Key+"="),
+				"%s env %s declared in .env.example", mod.Name, e.Key)
 		}
 		if item.ConfigFragment != "" {
 			raw, err := os.ReadFile(filepath.Join(appDir, "configs", "config.yaml"))
@@ -112,6 +135,19 @@ func cmdDoctor(args []string) error {
 				}
 			}
 			check(baseGone == 0, "%s baseline intact (%d of %d missing)", mod.Name, baseGone, len(mod.Files))
+		}
+	}
+
+	// 3) 安全公告：只提示不计数（体检不过载）；CI 门禁用 lynx-start audit。
+	if adv, err := registry.LoadAdvisories(*registryDir); err == nil {
+		for _, mod := range m.Modules {
+			for _, a := range adv.Hits(mod.Name, mod.Version) {
+				if github {
+					fmt.Printf("::warning title=%s/%s::%s@%s affected — upgrade to %s (lynx-start audit gate)\n", a.Severity, a.ID, a.Module, mod.Version, a.Fixed)
+				} else {
+					fmt.Printf("  ⚠ %s [%s] %s@%s affected — upgrade to %s (see lynx-start audit)\n", a.ID, a.Severity, a.Module, mod.Version, a.Fixed)
+				}
+			}
 		}
 	}
 

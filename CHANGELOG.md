@@ -6,6 +6,23 @@
 
 ## Unreleased
 
+- **M3 及格线(2026-10-25 第三批)**:
+  - I-13 安全公告通道:`registry/advisories.json`(affectedVersions 精确
+    匹配,不做范围解析)+ 新命令 `lynx-start audit`(命中即非零退出,
+    CI 门禁;--format github 出注解);doctor 集成为 ⚠ 提示(不计数不过载
+    体检语义);已回填首条真实公告 LYNXSTART-0001(identity 0.1.0 时序哑靶)。
+  - I-16 版本范围约束:item.json `moduleDependencies` 支持
+    `[{"identity": ">=0.1.1"}]` 对象形态(旧字符串形态兼容),add 安装期
+    校验已装版本(启动期 fail-closed 前移到安装期);新增 `kernelConstraint`
+    对照应用 go.mod 的 kernel require(add 校验 + doctor 复核);session
+    回填真实约束 identity>=0.1.1。
+  - I-15 env 声明:item.json `env` 字段([{key,description,secret}]);
+    add/update 自动写 `.env.example`(secret 生成 32 hex 随机占位,变量带
+    应用前缀),doctor 校验声明在位,remove 清理对应段;identity/session
+    已声明主密钥变量。
+  - I-12 贡献路径去手工化:新命令 `lynx-start registry add <dir>`(item.json
+    骨架 + registry.json 登记 + go.work use,一处输入三处一致,幂等)+
+    `lynx-start registry check`(一致性体检,可入 CI);CONTRIBUTING.md。
 - **M2 断点修复(2026-10-25 第二批)**:
   - I-07 OpenAPI 接线:scaffold 打开 `grpcapiserver.Config.OpenAPI`,应用
     免费获得 `GET /openapi.json`(能力在 grpcapi v0.4.0 的 openapi 包);

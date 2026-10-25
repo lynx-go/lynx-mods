@@ -36,6 +36,10 @@ func main() {
 		err = cmdDoctor(os.Args[2:])
 	case "list":
 		err = cmdList(os.Args[2:])
+	case "registry":
+		err = cmdRegistry(os.Args[2:])
+	case "audit":
+		err = cmdAudit(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -55,8 +59,11 @@ func usage() {
   lynx-start add <module>[@<version>] [--registry <dir>] [-o|--overwrite] [--dry-run]
   lynx-start update <module>[@<version>] [--registry <dir>] [--force]
   lynx-start remove <module> [--registry <dir>] [--dry-run]
-  lynx-start doctor [--registry <dir>]
+  lynx-start doctor [--registry <dir>] [--format text|github]
+  lynx-start audit [--registry <dir>] [--format text|github]   # security advisory gate (non-zero on hits)
   lynx-start list [--registry <dir>]
+  lynx-start registry <add|check> [--registry <repo-root>] [<module-dir>]
+      contributor tooling: register a module (item.json/registry.json/go.work) and check consistency
 
 Versions resolve to git tags modules/<name>/v<x.y.z> in the registry repo;
 add/update without @<version> take the registry worktree (latest).

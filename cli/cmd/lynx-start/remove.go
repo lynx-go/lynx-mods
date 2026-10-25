@@ -60,7 +60,7 @@ func cmdRemove(args []string) error {
 			return err
 		}
 		for _, dep := range item.ModuleDependencies {
-			if dep == name {
+			if dep.Name == name {
 				dependents = append(dependents, other.Name)
 			}
 		}
@@ -118,6 +118,9 @@ func cmdRemove(args []string) error {
 		// 注入回退（锚点保留，供将来 add 复用）。
 		if err := revertModulesEntry(appDir, name, m.ModulePath); err != nil {
 			return err
+		}
+		if err := removeEnvBlock(appDir, m, name); err != nil {
+			fmt.Printf("warn: env cleanup skipped: %v\n", err)
 		}
 		if err := removeConfigFragment(appDir, name); err != nil {
 			return err
@@ -200,5 +203,38 @@ func removeConfigFragment(appDir, name string) error {
 		}
 	}
 	out := append(append([]string{}, lines[:start]...), lines[end:]...)
+	return os.WriteFile(path, []byte(strings.Join(out, "\n")), 0o644)
+}
+
+// removeEnvBlock 从 .env.example 删除该模块的 env 段（`# module <name>:` 注释
+// 行与其后的变量行）；无段时幂等跳过。
+func removeEnvBlock(appDir string, m *manifest.Manifest, name string) error {
+	path := filepath.Join(appDir, ".env.example")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	marker := "# module " + name + ":"
+	lines := strings.Split(string(raw), "\n")
+	var out []string
+	skipping := false
+	for _, line := range lines {
+		switch {
+		case strings.HasPrefix(line, marker):
+			skipping = true
+		case skipping:
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				skipping = false
+				out = append(out, line)
+			}
+			// 变量行（含空行前的赋值行）被丢弃
+		default:
+			out = append(out, line)
+		}
+	}
 	return os.WriteFile(path, []byte(strings.Join(out, "\n")), 0o644)
 }
