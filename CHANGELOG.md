@@ -17,6 +17,12 @@
 - **发布自动化(I-06)**:本 CHANGELOG + `.github/workflows/release.yml`
   (tag push 自动建 Release,notes 从本文摘取)。
 
+## cli v0.1.1 (2026-10-25)
+
+- main 包移至 `cmd/lynx-start/`——`go install` 装出的二进制名随包目录,
+  v0.1.0 会装成 `cli`;修复后 `go install
+  github.com/lynx-go/lynx-start/cli/cmd/lynx-start@latest` 得到 `lynx-start`。
+
 ## cli v0.1.0 (2026-10-25)
 
 - 首个独立版本 tag(此前随仓库 main 演进):init / add(含 name@version 钉版、

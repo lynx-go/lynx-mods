@@ -24,8 +24,8 @@ shadcn/ui 是参照系：Radix 是库、组件是源码、registry 是分发协�
 ## 快速开始
 
 ```bash
-# 安装 CLI（Go 1.24+；或手工构建：cd cli && go build -o /usr/local/bin/lynx-start .）
-go install github.com/lynx-go/lynx-start/cli@latest
+# 安装 CLI（Go 1.24+；或手工构建：cd cli && go build -o /usr/local/bin/lynx-start ./cmd/lynx-start）
+go install github.com/lynx-go/lynx-start/cli/cmd/lynx-start@latest
 
 # registry 两种形态：本仓库目录，或 git URL（自动 clone 到 ~/.cache 并增量刷新）
 export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
@@ -151,8 +151,8 @@ the registry is the distribution protocol.
 ## Quick start
 
 ```bash
-# Install the CLI (Go 1.24+; or build manually: cd cli && go build -o /usr/local/bin/lynx-start .)
-go install github.com/lynx-go/lynx-start/cli@latest
+# Install the CLI (Go 1.24+; or build manually: cd cli && go build -o /usr/local/bin/lynx-start ./cmd/lynx-start)
+go install github.com/lynx-go/lynx-start/cli/cmd/lynx-start@latest
 
 # Registry comes in two forms: a local checkout, or a git URL (auto-cloned to ~/.cache with incremental refresh)
 export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
