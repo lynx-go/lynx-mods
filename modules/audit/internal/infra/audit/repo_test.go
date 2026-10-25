@@ -49,8 +49,10 @@ func TestRepo(t *testing.T) {
 		if recs[0].ID != "a3" || recs[2].ID != "a1" {
 			t.Errorf("order = %s,%s,%s", recs[0].ID, recs[1].ID, recs[2].ID)
 		}
-		if recs[0].Payload == nil || string(recs[0].Payload) != `{"k":1}` {
-			t.Errorf("payload = %s", recs[0].Payload)
+		// jsonb 读回会重序列化（键后加空格），语义比较而非字节比较。
+		var payload map[string]any
+		if err := json.Unmarshal(recs[0].Payload, &payload); err != nil || payload["k"] != float64(1) {
+			t.Errorf("payload = %s (err %v)", recs[0].Payload, err)
 		}
 	})
 
