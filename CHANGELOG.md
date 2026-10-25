@@ -6,6 +6,17 @@
 
 ## Unreleased
 
+- **ADR-0007 跨模块调用面:供给方 domain 接口 + 根包导出构造器**(决策先行,
+  不排期实现)。notification v0.1.0 砍显式发送时留下的口子:internal 可见性
+  下应用代码/其他模块如何同步调用模块写能力。通道分级判断表:事件(异步)
+  /userReader 只读适配器(读)/**新增③供给方 domain 能力接口+根包手写
+  exports.go 转发构造器+组合根显式接线(写)**/模块 RPC 面(跨进程)。
+  读写不对称是本质的:读可消费方自持,写必须供给方导出。零机制新增
+  (文件清单/导入改写/三方合并照旧);同事务靠 ctx 携带(buntx.Conn)自然
+  共享。弃选:kernel 服务注册表(运行时定位器与编译期显式哲学冲突,ADR-0005
+  同款理由)、RPC 自调用(环回+认证主体尴尬+单进程事务优势作废)、事件
+  请求-响应(异步强套同步)、userReader 推广到写路径(所有权漂移)。
+  module-authoring 双语加通道分级一节。
 - **registry 第 7 个模块 `notification` v0.1.0(站内通知,首个纯事件目录消费模块)**:
   - 定位:通知 = 事件的事实回执。订阅 `identity.user.password-changed` 与
     `organization.member.added` / `organization.member.removed` 自动生成

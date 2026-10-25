@@ -191,6 +191,14 @@ fail-closed，而不是运行期静默不触发。消费方按契约②不 impor
 消费的事件名常量定义在自己的 domain（对照 session 的
 `IdentityUserPasswordChanged`）。
 
+**跨模块协作通道分级**（ADR-0007，优先从上往下）：异步联动/事实广播 →
+事件目录；读他模块数据（简单键值查询）→ 消费方 domain 端口 + 自持**只读**
+适配器（userReader 模式，写方法一律报错）；同步调他模块**写**能力/跨模块
+业务步骤 → 供给方 domain 能力接口 + 模块根包 `exports.go` 转发构造器 +
+应用组合根显式接线（同事务靠 ctx 携带，`buntx.Conn(ctx)` 自然共享）；
+跨进程/外部触发 → 模块自身 RPC 面。**读写不对称是本质的：读可消费方
+自持，写必须供给方导出**（消费方直写他人的表 = 所有权漂移）。
+
 需要配置段时（对照 identity）：在 app 层定义 Config struct + `ApplyDefaults`，
 Assemble 里 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg)`，
 并把片段手写进 `configs/config.yaml`（registry 模块由安装器经 item.json 的

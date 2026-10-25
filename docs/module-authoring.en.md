@@ -210,6 +210,19 @@ firing at runtime. Per contract 2, consumers do not import publisher code;
 consumed event-name constants are defined in the consumer's own domain (cf.
 session's `IdentityUserPasswordChanged`).
 
+**Cross-module collaboration channels, in order of preference** (ADR-0007):
+async reaction / fact broadcast → the event catalog; reading another module's
+data (simple key lookups) → consumer-side domain port + a **read-only**
+adapter you own (the userReader pattern — write methods always error);
+calling another module's **write** capability synchronously / a cross-module
+business step → provider-side domain capability interface + a forwarding
+constructor in the module root `exports.go`, wired explicitly at the app
+composition root (same-transaction comes for free via the ctx —
+`buntx.Conn(ctx)` picks up the ambient tx). Cross-process / external triggers
+→ the module's own RPC surface. **The read/write asymmetry is essential:
+reads may be consumer-owned, writes must be provider-exported** (a consumer
+writing another module's tables directly = ownership drift).
+
 For a config section (cf. identity): define a Config struct + `ApplyDefaults`
 in the app layer; in Assemble call
 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg)`, and add
