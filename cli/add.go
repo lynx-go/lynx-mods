@@ -100,11 +100,7 @@ func cmdAdd(args []string) error {
 	res, err := render.Tree(item.Dir, appDir, data, render.Options{
 		Overwrite: overwriteAny,
 		DryRun:    *dryRun,
-		Skip: func(rel string) bool {
-			return rel == "item.json" || rel == "go.mod" ||
-				strings.HasPrefix(rel, "genproto/") ||
-				rel == "buf.yaml" || rel == "buf.gen.yaml" || rel == "buf.lock"
-		},
+		Skip:      skipModuleFile,
 		Rewrite: func(rel string, content []byte) []byte {
 			if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {
 				return content
@@ -160,6 +156,16 @@ func cmdAdd(args []string) error {
   mise run dev                 # gRPC :9060 / HTTP :8080
 `, goGetHint(item))
 	return nil
+}
+
+// skipModuleFile 排除模块目录里的工程/生成文件（add 与 update 共用）：
+// go.mod/go.sum 是模块自身模块管理的产物（应用的由 go mod tidy 生成——
+// 尤其 go.sum，三方合并它只会产生垃圾冲突）；genproto 与 buf 配置由
+// 应用的 buf 管线生成；item.json 是 registry 元数据。
+func skipModuleFile(rel string) bool {
+	return rel == "item.json" || rel == "go.mod" || rel == "go.sum" ||
+		strings.HasPrefix(rel, "genproto/") ||
+		rel == "buf.yaml" || rel == "buf.gen.yaml" || rel == "buf.lock"
 }
 
 func goGetHint(item *registry.Item) string {

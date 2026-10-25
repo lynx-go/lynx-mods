@@ -200,11 +200,7 @@ func renderUpstream(idx *registry.Index, registryDir string, item *registry.Item
 	appPath := []byte(m.ModulePath)
 	_, err := render.Tree(item.Dir, dst, render.NewData(m.Name, m.ModulePath), render.Options{
 		Overwrite: true,
-		Skip: func(rel string) bool {
-			return rel == "item.json" || rel == "go.mod" ||
-				strings.HasPrefix(rel, "genproto/") ||
-				rel == "buf.yaml" || rel == "buf.gen.yaml" || rel == "buf.lock"
-		},
+		Skip:      skipModuleFile,
 		Rewrite: func(rel string, content []byte) []byte {
 			if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {
 				return content
