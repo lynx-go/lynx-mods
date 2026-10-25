@@ -18,6 +18,7 @@ func cmdDoctor(args []string) error {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	registryDir := fs.String("registry", os.Getenv("LYNXSTART_REGISTRY"), "lynx-start repo directory")
 	dir := fs.String("dir", ".", "app directory")
+	format := fs.String("format", "text", "output format: text | github (workflow command annotations for CI)")
 	args = reorderArgs(map[string]bool{"registry": true, "dir": true}, args)
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -39,13 +40,22 @@ func cmdDoctor(args []string) error {
 	}
 	*registryDir = regDir
 	problems := 0
+	github := *format == "github"
 	check := func(ok bool, format string, args ...any) {
 		if ok {
-			fmt.Printf("  ✓ ")
-		} else {
-			problems++
-			fmt.Printf("  ✗ ")
+			if !github {
+				fmt.Printf("  ✓ ")
+				fmt.Printf(format+"\n", args...)
+			}
+			return
 		}
+		problems++
+		if github {
+			// workflow command：PR 界面行内注解；退出码稳定（1=有问题）。
+			fmt.Printf("::error title=lynx-start doctor::%s\n", fmt.Sprintf(format, args...))
+			return
+		}
+		fmt.Printf("  ✗ ")
 		fmt.Printf(format+"\n", args...)
 	}
 
@@ -106,7 +116,11 @@ func cmdDoctor(args []string) error {
 	}
 
 	if problems == 0 {
-		fmt.Println("✓ all checks passed")
+		if github {
+			fmt.Println("::notice title=lynx-start doctor::all checks passed")
+		} else {
+			fmt.Println("✓ all checks passed")
+		}
 		return nil
 	}
 	return fmt.Errorf("doctor found %d problem(s)", problems)

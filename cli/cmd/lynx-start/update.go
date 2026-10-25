@@ -28,12 +28,13 @@ func cmdUpdate(args []string) error {
 	registryDir := fs.String("registry", os.Getenv("LYNXSTART_REGISTRY"), "lynx-start repo directory")
 	dir := fs.String("dir", ".", "app directory")
 	force := fs.Bool("force", false, "re-sync even when the version is unchanged")
+	dryRun := fs.Bool("dry-run", false, "preview the merge plan without writing anything")
 	args = reorderArgs(map[string]bool{"registry": true, "dir": true}, args)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: lynx-start update <module>[@<version>] [--registry <dir>]")
+		return fmt.Errorf("usage: lynx-start update <module>[@<version>] [--registry <dir>] [--dry-run]")
 	}
 	name := fs.Arg(0)
 	version := ""
@@ -115,6 +116,21 @@ func cmdUpdate(args []string) error {
 	res, err := merge.Tree(local, base, other)
 	if err != nil {
 		return err
+	}
+
+	// --dry-run：合并计划完整呈现（自动合并 / 冲突 / upstream 删除），
+	// 不写任何文件——把「写盘不可回滚，先 commit」的判断依据交给用户。
+	if *dryRun {
+		fmt.Printf("\n(dry-run) %s %s → %s: %d auto-merged, %d unchanged, %d conflicts, %d removed-upstream\n",
+			name, installed.Version, item.Version, len(res.Updates), res.Unchanged, len(res.Conflicts), len(res.Removed))
+		printPlan("auto-merge", sortedKeys(res.Updates))
+		printPlan("conflict", res.Conflicts)
+		printPlan("removed-upstream", res.Removed)
+		if len(res.Conflicts) > 0 {
+			fmt.Println("  conflicts would get git markers (yours/baseline/theirs); nothing is written in dry-run")
+		}
+		fmt.Println("  (dry-run writes nothing; re-run without --dry-run to apply — commit the app first)")
+		return nil
 	}
 
 	// 冲突文件覆盖本地前留备份。
@@ -213,6 +229,23 @@ func renderUpstream(idx *registry.Index, registryDir string, item *registry.Item
 		},
 	})
 	return err
+}
+
+// printPlan 逐行列出合并计划文件（dry-run 报告用）。
+func printPlan(kind string, rels []string) {
+	for _, rel := range rels {
+		fmt.Printf("  %-15s %s\n", kind, rel)
+	}
+}
+
+// sortedKeys 返回 map 键的排序切片。
+func sortedKeys(m map[string][]byte) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // readTree 把目录读为内存树（斜杠路径 → 内容）。

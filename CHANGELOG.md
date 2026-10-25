@@ -6,6 +6,18 @@
 
 ## Unreleased
 
+- **M2 断点修复(2026-10-25 第二批)**:
+  - I-07 OpenAPI 接线:scaffold 打开 `grpcapiserver.Config.OpenAPI`,应用
+    免费获得 `GET /openapi.json`(能力在 grpcapi v0.4.0 的 openapi 包);
+  - I-08 scaffold 换用 `kernel.DefaultChain`(v0.3.0)——复刻默认链的
+    易错逻辑从生成物移入 semver 库;
+  - I-09 `update --dry-run`:合并计划(自动合并/冲突/upstream 删除)完整
+    呈现,零写盘;
+  - I-10 CI 组合矩阵:单模块 / 依赖边 / 全量五组合,e2e 经
+    `LYNX_E2E_MODULES` 参数化;
+  - I-11 `doctor --format github`:失败项输出 workflow command 注解,
+    通过项静默,退出码稳定(0/1);
+  - init go.mod 写入依赖地板(kernel v0.3.0 / grpcapi v0.4.0)。
 - **英文文档(I-01)**:README 完整英文段、module-authoring.en.md、scaffold
   README 双语、GLOSSARY 英文对照;
 - **README:go install 与 Non-goals(I-02/I-03)**:快速开始首选

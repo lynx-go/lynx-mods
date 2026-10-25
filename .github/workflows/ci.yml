@@ -76,9 +76,22 @@ jobs:
           mise run generate:proto
           git diff --exit-code -- modules/
 
+  # 组合矩阵（I-10）：单模块 / 依赖边 / 全量——模块间兼容性声明再严谨,
+  # 也不如把组合真的跑起来;新增模块登记 registry.json 后在矩阵里补组合。
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        modules:
+          - "demo"
+          - "identity"
+          - "identity session"
+          - "identity access"
+          - "demo identity session access audit"
+    env:
+      LYNX_E2E_MODULES: ${{ matrix.modules }}
     steps:
       # fetch-depth 0：test:scaffold 的 update 场景装 identity@0.1.0，
       # 版本解析依赖 git tag（modules/identity/v0.1.0 指向历史提交）。

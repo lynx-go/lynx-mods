@@ -172,6 +172,8 @@
 
 ## 6. M2 —— 修头 15 分钟断点
 
+> **状态:已交付(2026-10-25,第二批)。** I-07(grpcapi v0.4.0 openapi 包 + scaffold 开关)、I-08(kernel v0.3.0 DefaultChain + scaffold 一行调用)、I-09(update --dry-run,实测零写盘)、I-10(CI 五组合矩阵,LYNX_E2E_MODULES 参数化)、I-11(doctor --format github + 稳定退出码)全部落地;I-12(贡献路径去手工化)未做,留待下批。
+
 ### I-07 OpenAPI 生成 ✅(能力已下沉 grpcapi,2026-10-25)
 
 - **架构决策(评审反馈)**:OpenAPI 生成本质是"从 policy 注解推导 API 文档",policy 体系(anonymous/roles/permissions/scopes)是 grpcapi 的私有知识,generic buf 插件表达不了——**能力下沉 grpcapi**,不放进本仓 scaffold。
