@@ -29,6 +29,13 @@
   安装基线)/ update(三方合并)/ remove(DAG 反向校验)/ doctor / list;
   registry 支持本仓库目录与 git URL(clone 缓存 + 增量刷新)。
 
+## kernel v0.3.0 (2026-10-25)
+
+- `DefaultChain(logger, set, agg, authnOpts)`(additive):模块贡献 Stage 时
+  必须复刻的 server 默认链(recovery/requestid/clientinfo/authn/authz/
+  validate)收进 kernel——修复可达性,详见
+  [kernel/CHANGELOG.md](kernel/CHANGELOG.md)。
+
 ## kernel v0.2.0 (2026-10-25)
 
 - 事件目录契约:`Module.PublishedEvents` / `ConsumedEvents` + 启动期交叉校验

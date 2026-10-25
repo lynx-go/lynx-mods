@@ -3,6 +3,15 @@
 Kernel 对外做 semver 承诺:破坏性变更升主版本(0.x 阶段升 minor),向后兼容追加升 patch。
 条目按发布时间倒序;根 CHANGELOG.md 含全仓(含模块)视角。
 
+## v0.3.0 (2026-10-25)
+
+- **`DefaultChain(logger, set, agg, authnOpts)`(additive)**:把「模块贡献
+  Stage 时必须复刻 server 默认链」的知识收进 kernel——recovery/requestid/
+  clientinfo/authn/authz/validate 基础段 + 模块 Stage 按 Order 稳定排序;
+  无 Stage 时返回 (nil, nil) 沿用 server.New 自建链。修复可达性:该逻辑
+  此前住在 scaffold(生成后归用户的静态文件),漏一段即认证静默丢失且
+  无法远程修复——按 ADR-0003「出错要能远程修」的界归 kernel。
+
 ## v0.2.0 (2026-10-25)
 
 - **事件目录契约(additive)**:`Module` 新增 `PublishedEvents` / `ConsumedEvents`;
