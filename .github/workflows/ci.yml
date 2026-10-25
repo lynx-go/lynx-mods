@@ -80,7 +80,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # fetch-depth 0：test:scaffold 的 update 场景装 identity@0.1.0，
+      # 版本解析依赖 git tag（modules/identity/v0.1.0 指向历史提交）。
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: jdx/mise-action@v2
       - uses: actions/cache@v4
         with:
