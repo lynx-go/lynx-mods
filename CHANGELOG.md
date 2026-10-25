@@ -1,0 +1,73 @@
+# Changelog — lynx-start
+
+两类版本:kernel(`kernel/vX.Y.Z`,semver)与 registry 模块(`modules/<name>/vX.Y.Z`,
+源码分发,无稳定性承诺)。CLI / scaffold 变更随仓库 main 演进,不单独打 tag,
+记在 Unreleased。推 tag 后 GitHub Actions 自动建 Release 并摘取本文对应小节。
+
+## Unreleased
+
+- **英文文档(I-01)**:README 完整英文段、module-authoring.en.md、scaffold
+  README 双语、GLOSSARY 英文对照;
+- **README:go install 与 Non-goals(I-02/I-03)**:快速开始首选
+  `go install github.com/lynx-go/lynx-start/cli@latest`;新增「非目标」章节;
+- **scaffold:启动期 HTTP 路由表(I-04)**:服务启动打印 方法/路径/RPC/认证
+  要求,免翻 proto 找路径;
+- **scaffold:数据库连接失败排障提示(I-05)**:端口被既有 Postgres 占用等常见
+  形态,报错附可执行动作(bootstrap.HintDB,migrate 与 server 共用);
+- **发布自动化(I-06)**:本 CHANGELOG + `.github/workflows/release.yml`
+  (tag push 自动建 Release,notes 从本文摘取)。
+
+## cli v0.1.0 (2026-10-25)
+
+- 首个独立版本 tag(此前随仓库 main 演进):init / add(含 name@version 钉版、
+  安装基线)/ update(三方合并)/ remove(DAG 反向校验)/ doctor / list;
+  registry 支持本仓库目录与 git URL(clone 缓存 + 增量刷新)。
+
+## kernel v0.2.0 (2026-10-25)
+
+- 事件目录契约:`Module.PublishedEvents` / `ConsumedEvents` + 启动期交叉校验
+  (消费的每个事件必须有已装发布方);
+- `password.DummyHash()`:登录时序对齐哑靶(参数恒同参);
+- 详见 [kernel/CHANGELOG.md](kernel/CHANGELOG.md)。
+
+## kernel v0.1.0 (2026-10-25)
+
+- 初始发布:装配协议 / errcode / contexts / events / uow+buntx / crud /
+  goosekit / secretkey / clock / idgen / password / jwt / bunx / configkit /
+  testutil;
+- 详见 [kernel/CHANGELOG.md](kernel/CHANGELOG.md)。
+
+## identity v0.1.1 (2026-10-25)
+
+- 安全修复:登录时序对齐哑靶改调 `kernel/password.DummyHash()`(删模块内写死
+  常量;kernel 升参数后旧哑靶失配、时序对齐静默失效);
+- goDependencies 提升至 `kernel >= v0.2.0`。
+
+## identity v0.1.0 (2026-10-25)
+
+- 注册 / 登录(Argon2id + HS256 JWT,purpose 隔离)/ 自助改密;
+- 向应用贡献 Bearer 认证器:未声明 `anonymous` 的方法自动要求认证(fail-closed);
+- 事件:`identity.user.created` / `identity.user.password-changed`;
+- 安全边界:令牌无吊销(TTL 默认 30m);生产必须更换 `identity.secret`。
+
+## session v0.1.0 (2026-10-25)
+
+- 首个跨模块依赖(identity);可吊销会话:访问(15m)+刷新(30d)令牌对,
+  Refresh 轮换刷新令牌(旧 jti 重放即吊销全会话),Logout/LogoutAll;
+- 订阅 `identity.user.password-changed` 自动全局吊销。
+
+## access v0.1.0 (2026-10-25)
+
+- RBAC:角色目录配置声明(`access.roles`)+ 分配落库(幂等 Grant/Revoke);
+- Enricher 认证后注入 roles/permissions claims——任何模块可在 proto 声明
+  `permissions` / `roles`,与令牌来源无关;
+- bootstrap 管理员邮箱启动期收敛。
+
+## audit v0.1.0 (2026-10-25)
+
+- 审计三路径:RPC 拦截器自动记录(Order=50 槽位)+ 显式记录(同事务)+
+  分页查询(append-only,零模块依赖)。
+
+## demo v0.1.0 (2026-10-25)
+
+- 单实体 CRUD 样例,验证装配管线(不承载业务语义)。

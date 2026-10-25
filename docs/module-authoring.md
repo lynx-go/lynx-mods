@@ -1,5 +1,7 @@
 # 模块编写指南
 
+> English version: [module-authoring.en.md](module-authoring.en.md) — 本文为源文档,两版分歧时以中文版为准。
+
 面向两类读者：
 
 - **应用开发者**——装了几个 registry 模块之后，要写自己的业务域；

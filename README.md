@@ -24,8 +24,8 @@ shadcn/ui 是参照系：Radix 是库、组件是源码、registry 是分发协�
 ## 快速开始
 
 ```bash
-# 构建 CLI
-cd cli && go build -o /usr/local/bin/lynx-start .
+# 安装 CLI（Go 1.24+；或手工构建：cd cli && go build -o /usr/local/bin/lynx-start .）
+go install github.com/lynx-go/lynx-start/cli@latest
 
 # registry 两种形态：本仓库目录，或 git URL（自动 clone 到 ~/.cache 并增量刷新）
 export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
@@ -110,6 +110,16 @@ GLOSSARY.md 统一语言
 Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 列表是
 唯一登记点，`main.go` 聚合后交给 lynx + grpcapi，启动期 fail-closed 断言防漂移。
 
+## 非目标（Non-goals）
+
+以下是**承诺不做**（不是还没做）——用于 5 分钟内自我筛选：
+
+- **单进程 modular monolith**：跨进程事件投递、outbox、分布式集成不在覆盖面（进程内事件总线 + 启动期目录校验是当前边界）；
+- **Postgres / bun only**：无第二存储方言（Deps.DB 是 *bun.DB）；
+- **HTTP 面圈定在 proto 注解 + ExtraRoute**：流式、WebSocket、文件上传不在 registry 模块覆盖面（应用侧自担）;
+- **不抄 shadcn HTTP registry 协议**：registry 走 git 仓库 + tag，对私有部署更友好；
+- **多租户不进 kernel**（契约⑥）：是未来横切模块的事。
+
 ## Roadmap
 
 - 下一批业务模块（SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
@@ -118,8 +128,134 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 # lynx-start (English)
 
-A **shadcn-style module infrastructure for the lynx ecosystem**: a Kernel contract
-library, a source-code module registry, and an installer CLI. Business domains are
-installed as source code you own and edit freely. See the Chinese section above for
-architecture, quick start, contracts, and roadmap; canonical docs live in
-`docs/adr/` and `GLOSSARY.md`.
+**shadcn-style module infrastructure for the lynx ecosystem**: a Kernel contract
+library + a source-code module registry + an installer CLI. Business domains are
+installed as source code into any lynx-based Go backend — the code is yours
+once installed. Edit it freely.
+
+## Positioning: three supply layers (ADR-0003)
+
+| Layer | Form | Stability promise |
+|---|---|---|
+| Framework | lynx / grpcapi / bun / goose (libraries) | follows upstream |
+| **Kernel** (`kernel/`, standalone Go module) | assembly protocol, principal context, error-code spaces, crud pagination dialect, uow transaction port, event envelope, goosekit migration isolation | **semver** |
+| **Source modules** (`modules/`, registry items) | a four-layer implementation of one business domain (domain/app/api/infra + proto + migrations + config section) | none — the source is yours |
+
+"Stable" is carried by the Kernel (compile-time typed contracts), "extensible"
+by source modules (you edit your own code, not plugin hooks), and "evolvable"
+by the registry (git-tagged versions + three-way-merge updates; security-sensitive
+implementations sink into the Kernel and ship fixes via semver).
+shadcn/ui is the reference: Radix is a library, components are source,
+the registry is the distribution protocol.
+
+## Quick start
+
+```bash
+# Install the CLI (Go 1.24+; or build manually: cd cli && go build -o /usr/local/bin/lynx-start .)
+go install github.com/lynx-go/lynx-start/cli@latest
+
+# Registry comes in two forms: a local checkout, or a git URL (auto-cloned to ~/.cache with incremental refresh)
+export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
+# Generate the app skeleton and install modules
+lynx-start init myapp --module github.com/acme/myapp --registry <this-repo>
+cd myapp
+lynx-start add demo --registry <this-repo>      # sample: verifies the assembly pipeline
+lynx-start add identity@0.1.1 --registry <this-repo>  # optional: pin a version (git tag)
+lynx-start add session --registry <this-repo>    # revocable session token pair (depends on identity, validated by the installer)
+lynx-start add access --registry <this-repo>     # authorization: RBAC + claims injection (depends on identity)
+lynx-start add audit --registry <this-repo>      # audit: RPC interceptor auto-recording + explicit recording + queries (zero deps)
+
+# When a registry module ships a new version (three-way merge: local / install baseline / upstream)
+git add -A && git commit -m wip    # update writes are not rollback-safe — commit first
+lynx-start update identity --registry <this-repo>
+
+# Health checks (modules.go/config/baseline/dependency consistency) and uninstall
+lynx-start doctor --registry <this-repo>
+lynx-start remove audit --registry <this-repo>   # reverse-DAG validation; migration tables are kept (data safety)
+
+# Run it (order matters: go mod tidy fails before genproto exists; mise pins go/buf)
+mise install && mise trust
+mise run generate               # buf dep update + lint + generate → genproto/
+go mod tidy                     # kernel (semver) and module deps are pulled here
+mise run db:up && mise run db:migrate
+mise run dev                    # gRPC :9060 / HTTP :8080
+```
+
+To write your own business-domain module see
+[docs/module-authoring.en.md](docs/module-authoring.en.md)
+(中文版: [docs/module-authoring.md](docs/module-authoring.md)).
+
+## Repository layout
+
+```
+kernel/     contract library (standalone Go module, semver) — v0.2.0 package set:
+            module/assembly protocol & DAG validation · errcode spaces ·
+            contexts principal context · events envelope & publisher port ·
+            uow+buntx transaction propagation · crud pagination dialect
+            (HMAC token + cursor) · goosekit per-module migration isolation ·
+            secretkey master-key purpose derivation · clock (fake-injectable) ·
+            idgen random/prefixed IDs · password argon2id hashing ·
+            jwt HS256 issue/verify (purpose isolation) ·
+            bunx connection bootstrap + AIP-132 whitelisted ordering + generic list ·
+            configkit config-section loading · testutil isolated test-DB harness
+modules/    registry items: each module is a REAL Go module (own go.mod,
+            genproto and buf config — compiled and tested in this repo, CI-covered);
+            lynx-start add rewrites import paths to your app's module path (the
+            counterpart of shadcn's alias rewrite) and excludes engineering files
+cli/        lynx-start installer (init / add / update / remove / doctor / list;
+            shadcn semantics: never overwrite by default, idempotent;
+            add supports name@version (git tag) and writes an install baseline,
+            update performs a three-way merge)
+registry/   registry.json module index
+scaffold/   the app skeleton template generated by lynx-start init
+docs/adr/   decision records (0001 bun / 0002 archived / 0003 three-layer supply / 0004 six contracts)
+docs/module-authoring.en.md   module authoring guide (add a business domain to your app / publish to the registry)
+GLOSSARY.md  ubiquitous language
+```
+
+## Installable modules
+
+| Module | Version | Notes |
+|---|---|---|
+| `demo` | 0.1.0 | Single-entity CRUD sample that verifies the assembly pipeline (no business semantics) |
+| `identity` | 0.1.1 | Register/login (Argon2id password hashing + HS256 JWT, purpose isolation) / self-service password change; contributes a Bearer authenticator to the app — after installation, methods not declared `anonymous` require authentication. Event catalog: `identity.user.created` / `identity.user.password-changed`. Security boundary: tokens are not revocable (default TTL 30m; per-request DB re-read required for instant disable); production deployments MUST change `identity.secret` (Assemble warns about the dev default key) |
+| `session` | 0.1.0 | **Depends on identity** (first cross-module dependency, DAG-validated by the installer). Upgrades identity's stateless tokens to revocable sessions: CreateSession (principal-driven) → access(15m)+refresh(30d) token pair; Refresh rotates the refresh token (replaying an old jti revokes the whole session); Logout/LogoutAll; subscribes to `identity.user.password-changed` for automatic global revocation. Access tokens and identity tokens coexist in the auth chain |
+| `access` | 0.1.0 | **Depends on identity**. RBAC: the role catalog is declared in the config section (`access.roles`, auditable), assignment facts live in the DB (idempotent Grant/Revoke); **an Enricher injects roles/permissions claims after authentication** — any module's method may declare `permissions:[...]` (MATCH_ALL) or `roles:[...]` (MATCH_ANY) in proto, regardless of token origin; bootstrap admin emails converge at startup. Managing the API requires the `access.assignment.write` permission |
+| `audit` | 0.1.0 | Audit: RPC interceptor auto-recording + explicit recording (same transaction) + paginated query (append-only, zero module dependencies) |
+
+> Modules must be real, compilable code: any kernel breaking change surfaces in
+> this repo's `go build ./...` immediately — not when some app installs the
+> module. This is the counterpart of shadcn's discipline (components are built
+> and type-checked inside their own monorepo).
+
+## The six module contracts (ADR-0004)
+
+1. Layer ownership: `domain/<module>` (the outward contract surface) + `internal/{app,api,infra}/<module>` + `proto/<module>/v1`, generated code built locally with buf
+2. Cross-module dependencies are domain-level DAG only (compiler-enforced — domain lives outside internal, so app/infra/api cross-imports simply do not compile); cross-domain integration goes through Kernel ports + app adapters + the string event catalog
+3. Config autonomy: each module carries its own Config struct (`UnmarshalKey` on its own section), no global config.proto
+4. Migration isolation: per-module goose version table (`goose_<module>_db`), no cross-module foreign keys
+5. Error-code spaces: `errcode.MustRegister("<module>")`, custom codes within the space
+6. No tenancy preset in the Kernel: multi-tenancy is a future cross-cutting module
+
+## Assembly protocol
+
+A module exposes `Module()` (static: policy descriptors / migrations / dependency
+declarations) and `Assemble(kernel.Deps) (kernel.Assembly, error)` (dynamic:
+Registrations/Services/Tasks/Authenticators/Enrichers/Stages/ExtraRoutes). The
+`Installed` list in the app's `internal/modules/modules.go` is the single
+registration point; `main.go` aggregates and hands everything to lynx + grpcapi,
+with fail-closed startup assertions against drift.
+
+## Non-goals
+
+These are commitments, not a backlog — use them to self-filter in five minutes:
+
+- **Single-process modular monolith**: no cross-process event delivery, no outbox, no distributed integration (the in-process event bus + startup catalog validation is the current boundary);
+- **Postgres / bun only**: no second storage dialect (`Deps.DB` is `*bun.DB`);
+- **The HTTP surface is confined to proto annotations + ExtraRoute**: streaming, WebSocket and file upload are not covered by registry modules (bring your own);
+- **No shadcn HTTP registry protocol**: the registry is a git repo + tags — friendlier to private deployments;
+- **No tenancy in the Kernel** (contract 6): it belongs to a future cross-cutting module.
+
+## Roadmap
+
+- Next batch of business modules (SaaS-domain design material is ready; see early discussions and the ADR-0002 archive)
