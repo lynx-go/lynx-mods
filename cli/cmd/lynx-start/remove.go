@@ -15,8 +15,8 @@ import (
 
 // cmdRemove: lynx-start remove <module> —— 卸载模块：回退 modules.go 注入
 // 与 config 段、删除安装文件（共享文件保护）、整树清理 modules/<m>（含
-// 桥接与 genproto）、清用户目录基线/备份缓存。迁移表 goose_<m>_db 一律
-// 保留（数据安全）。
+// 桥接）与 genproto/<m>、清用户目录基线/备份缓存。迁移表 goose_<m>_db
+// 一律保留（数据安全）。
 func cmdRemove(args []string) error {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	registryDir := fs.String("registry", os.Getenv("LYNXSTART_REGISTRY"), "lynx-start repo directory")

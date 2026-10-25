@@ -55,12 +55,12 @@ var _ = sessionv1.Z
 var _ = identity.User{}
 `
 	got := string(rw("internal/app/session/x.go", []byte(goSrc)))
-	// 尾段拍平：canonical …/domain/session → app modules/session/domain
-	//（genproto 保留 <m>/v1——buf 输出相对路径决定）。
+	// 尾段拍平：canonical …/domain/session → app modules/session/domain；
+	// genproto 是唯一不走 modules/ 的特例（归应用根——ADR-0006 修订）。
 	for _, want := range []string{
 		"\"example.com/app/modules/session/domain\"",
 		"appsession \"example.com/app/modules/session/internal/app\"",
-		"sessionv1 \"example.com/app/modules/session/genproto/session/v1\"",
+		"sessionv1 \"example.com/app/genproto/session/v1\"",
 		"\"example.com/app/modules/identity/domain\"",
 	} {
 		if !strings.Contains(got, want) {
@@ -73,7 +73,7 @@ var _ = identity.User{}
 
 	protoSrc := `option go_package = "github.com/lynx-go/lynx-start/modules/session/genproto/session/v1;sessionv1";`
 	got = string(rw("proto/session/v1/session.proto", []byte(protoSrc)))
-	if !strings.Contains(got, `"example.com/app/modules/session/genproto/session/v1;sessionv1"`) {
+	if !strings.Contains(got, `"example.com/app/genproto/session/v1;sessionv1"`) {
 		t.Errorf("go_package rewrite wrong: %s", got)
 	}
 }

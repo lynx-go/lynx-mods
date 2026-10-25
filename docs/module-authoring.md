@@ -60,9 +60,8 @@ modules/<m>/（仓内）            <app>/（安装后，尾段拍平）
 │   ├── repo.go                 │   ├── domain/          # 对外契约面：聚合/端口/哨兵/事件常量
 │   └── guard_test.go           │   ├── internal/app/    # 用例层：编排领域与端口
 ├── internal/{app,api,infra}/<m>/ │   ├── internal/api/    # Service 实现（薄转发）+ Module()/Assemble()
-└── proto/<m>/v1/<m>.proto      │   ├── internal/infra/  # bun 仓储 + migrations/（embed.FS）
-                                │   └── genproto/<m>/v1/ # lynx-start generate 产出归位
-                                └── proto/<m>/v1/<m>.proto  # API 契约源（集中应用根）
+└── proto/<m>/v1/<m>.proto      │   └── internal/infra/  # bun 仓储 + migrations/（embed.FS）
+                                └── proto/<m>/v1/<m>.proto  # 契约源集中应用根（genproto/ 生成物亦在应用根）
 ```
 
 依赖方向恒定：`api → app → domain ← infra`。装配在模块内
@@ -200,7 +199,7 @@ Assemble 里 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg
 ### 第 6 步：生成代码
 
 ```bash
-mise run generate    # lynx-start generate：buf 管线 + genproto 归位 modules/<m>/genproto/
+mise run generate    # lynx-start generate：buf 管线（genproto/** 落应用根）
 go mod tidy
 ```
 

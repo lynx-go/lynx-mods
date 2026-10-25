@@ -12,10 +12,9 @@
     模块名目录拍平；模块仓内源码结构零改动。Go internal 可见性下应用经
     CLI 生成的桥接包 `modules/<m>/module.go` 取得 Module/Assemble；
     modules.go 登记点移至 `modules/modules.go`。proto 契约源仍集中应用根。
-  - 新命令 `lynx-start generate`：buf 管线（dep update/lint/generate）+
-    genproto 按模块归位 `modules/<m>/genproto/<m>/v1/`——布局规则单一
-    事实源收敛 CLI（不靠安装拷贝也不靠 mise shell 后处理）；scaffold 的
-    mise generate 任务变为一行转发。
+  - 新命令 `lynx-start generate`：buf 管线（dep update/lint/generate），
+    布局规则单一事实源收敛 CLI（不靠安装拷贝也不靠 mise shell 后处理）；
+    scaffold 的 mise generate 任务变为一行转发。
   - 基线缓存迁至 `~/.lynx-start/baselines/<appModulePath>/<m>@<commit>/`
     （多版本并存、可重建、不进仓库）：应用只提交 lock.json+manifest；
     update/doctor 在缓存缺失时按 lock 记录的 commit 从 registry 自动重建
@@ -98,6 +97,15 @@
   形态,报错附可执行动作(bootstrap.HintDB,migrate 与 server 共用);
 - **发布自动化(I-06)**:本 CHANGELOG + `.github/workflows/release.yml`
   (tag push 自动建 Release,notes 从本文摘取)。
+
+## cli v0.2.1 (2026-10-25)
+
+ADR-0006 修订：**genproto 回归应用根** `genproto/<m>/v1/`（v0.2.0 曾归位
+`modules/<m>/genproto/`）。复盘：genproto 是改写约定里最稳定的一条特例（目录名死约定），
+生成物无人手工 diff、镜像完整性价值近乎零；generate 后搬移是长期维护税（首版即出过
+目标路径 bug）且偏离 buf 生态惯例。generate 现在是纯 buf 管线、零后处理；remove 顺手
+清理 `genproto/<m>/`。三目录各司其职：`proto/` 契约源、`genproto/` 生成物、`modules/`
+模块源码。**v0.2.0 装的应用需重装迁移**（add -o 重写 genproto import），lynx-start-demo 已同步。
 
 ## cli v0.2.0 (2026-10-25)
 

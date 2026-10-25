@@ -6,8 +6,8 @@ package main
 //	<app>/modules/<name>/
 //	├── module.go            # 桥接包（bridgeModule 生成；装配入口唯一暴露面）
 //	├── domain/…             # ← 模块仓 domain/<name>/
-//	├── internal/{app,api,infra}/…   # ← 模块仓 internal/{app,api,infra}/<name>/
-//	└── genproto/<name>/v1/… # lynx-start generate 产出归位
+//	└── internal/{app,api,infra}/…   # ← 模块仓 internal/{app,api,infra}/<name>/
+//（proto 源与 genproto 生成物均集中应用根 proto/<name>/ 与 genproto/<name>/）
 //
 // proto 契约源集中应用根 proto/<name>/v1/；基线/备份是 ~/.lynx-start 下
 // 按 <appModulePath>/<module>@<commit> 寻址的可重建缓存（lock+manifest
@@ -45,13 +45,15 @@ const canonicalModulesPrefix = "github.com/lynx-go/lynx-start/modules/"
 // moduleRewriter 构造逐依赖的结构化导入改写（add/update 共用）。
 // canonicals: 已装模块名 → 规范 module path（本模块 + 声明依赖）。
 //
-// 五条规则（先长后短，顺序敏感）：
+// 规则（先长后短，顺序敏感）：
 //
-//	C(d)/genproto/                 → <app>/modules/<d>/genproto/
+//	C(d)/genproto/                 → <app>/genproto/            （生成物归应用根）
 //	C(d)/domain/<d>                → <app>/modules/<d>/domain
 //	C(d)/internal/{app,api,infra}/<d> → <app>/modules/<d>/internal/{app,api,infra}
 //
-// 通吃 .go 的 import、genproto 引用与 .proto 的 go_package。
+// 通吃 .go 的 import、genproto 引用 与 .proto 的 go_package。genproto 是
+// 唯一不走 modules/<d>/ 的特例——也是全部约定里最稳定的一条（目录名死
+// 约定），buf 直接输出应用根、零后处理（ADR-0006 修订）。
 func moduleRewriter(appModulePath string, canonicals map[string]string) func(rel string, content []byte) []byte {
 	type rule struct{ from, to []byte }
 	names := make([]string, 0, len(canonicals))
@@ -63,7 +65,7 @@ func moduleRewriter(appModulePath string, canonicals map[string]string) func(rel
 	for _, name := range names {
 		c := canonicals[name]
 		rules = append(rules,
-			rule{[]byte(c + "/genproto/"), []byte(appModulePath + "/modules/" + name + "/genproto/")},
+			rule{[]byte(c + "/genproto/"), []byte(appModulePath + "/genproto/")},
 			rule{[]byte(c + "/domain/" + name), []byte(appModulePath + "/modules/" + name + "/domain")},
 			rule{[]byte(c + "/internal/app/" + name), []byte(appModulePath + "/modules/" + name + "/internal/app")},
 			rule{[]byte(c + "/internal/api/" + name), []byte(appModulePath + "/modules/" + name + "/internal/api")},

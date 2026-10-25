@@ -35,16 +35,23 @@ AssertDepsAtAPILayer 相对路径深度随之变化，安装时做一条确定�
 （`../../internal/app` → `../internal/app`）。仓库内模块源码结构**不动**
 ——拍平只发生在安装映射。
 
-### 3. proto 集中、genproto 归模块、generate 收敛 CLI
+### 3. proto 与 genproto 均集中应用根、generate 收敛 CLI
 
 - proto 契约源集中应用根 `proto/<m>/v1/`（buf 单根、vendored policy.proto
   共享保护、proto-drift CI 不动）。
-- genproto 归 `modules/<m>/genproto/<m>/v1/`，由**新命令
-  `lynx-start generate`** 产出后归位（exec buf 管线 + 目录搬移），**不靠
-  安装时拷贝**——契约①「生成物应用侧钉版 buf 本地生成」保持，且生成物
-  不进三方合并；也不靠 mise shell 后处理——布局规则单一事实源在 CLI，
-  规则演进靠升级 CLI（与 P1-⑥ DefaultChain 下沉 kernel 同款哲学）。
-- 导入改写因此收敛为五条结构化规则（genproto/domain/三层 internal），
+- genproto 生成物集中应用根 `genproto/<m>/v1/`（buf 直接输出、零后处理）。
+  **修订记录（v0.2.1）**：v0.2.0 曾把 genproto 归位 `modules/<m>/genproto/`
+  （generate 后搬移）——为「改写零特例 + 模块树 100% 镜像」；复盘推翻：
+  genproto 特例是全部改写约定里最稳定的一条（目录名死约定），而生成物
+  无人手工 diff、镜像完整性价值近乎零，搬移后处理反而是长期维护税
+  （首版即出过目标路径 bug）且偏离 buf 生态惯例（根 genproto/ 是默认
+  形态）。三目录各司其职：`proto/` 源、`genproto/` 生成物、`modules/`
+  模块源码。
+- **新命令 `lynx-start generate`**（exec buf 管线：dep update / lint /
+  generate）：布局规则单一事实源在 CLI，规则演进靠升级 CLI（与 P1-⑥
+  DefaultChain 下沉 kernel 同款哲学）。不靠安装时拷贝——契约①「生成物
+  应用侧钉版 buf 本地生成」保持，且生成物不进三方合并。
+- 导入改写为结构化规则族（genproto 特例 + domain/三层 internal 逐依赖），
   改写后残留扫描 fail-closed（规则漏配即报错，不静默产坏代码）。
 
 ### 4. 基线是用户目录缓存：`~/.lynx-start/baselines/<appModulePath>/<m>@<commit>`

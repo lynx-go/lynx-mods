@@ -70,9 +70,8 @@ modules/<m>/ (registry)         <app>/ (installed, tail segment flattened)
 │   ├── repo.go                 │   ├── domain/          # outward contract surface: aggregates/ports/sentinels/events
 │   └── guard_test.go           │   ├── internal/app/    # use-case layer: orchestrates domain and ports
 ├── internal/{app,api,infra}/<m>/ │   ├── internal/api/    # Service impl (thin forwarding) + Module()/Assemble()
-└── proto/<m>/v1/<m>.proto      │   ├── internal/infra/  # bun repository + migrations/ (embed.FS)
-                                │   └── genproto/<m>/v1/ # relocated by lynx-start generate
-                                └── proto/<m>/v1/<m>.proto  # API contract source (app-root central)
+└── proto/<m>/v1/<m>.proto      │   └── internal/infra/  # bun repository + migrations/ (embed.FS)
+                                └── proto/<m>/v1/<m>.proto  # contract source at app root (genproto/ output likewise)
 ```
 
 The dependency direction is constant: `api → app → domain ← infra`. Assembly
@@ -220,7 +219,7 @@ automatically via the item.json `configFragment`).
 ### Step 6: generate code
 
 ```bash
-mise run generate    # lynx-start generate: buf pipeline + genproto relocation into modules/<m>/genproto/
+mise run generate    # lynx-start generate: buf pipeline (genproto/** lands at the app root)
 go mod tidy
 ```
 
