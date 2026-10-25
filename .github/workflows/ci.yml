@@ -89,7 +89,8 @@ jobs:
           - "identity"
           - "identity session"
           - "identity access"
-          - "demo identity session access audit"
+          - "identity organization"
+          - "demo identity session access audit organization"
     env:
       LYNX_E2E_MODULES: ${{ matrix.modules }}
     steps:

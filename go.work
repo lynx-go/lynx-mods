@@ -7,5 +7,6 @@ use (
 	./modules/audit
 	./modules/demo
 	./modules/identity
+	./modules/organization
 	./modules/session
 )

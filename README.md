@@ -33,11 +33,12 @@ export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
 lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
 lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
-lynx-start init myapp-saas --preset saas --registry <本仓库目录>  # 或：一条命令装齐 SaaS 账号底座（identity+session+access+audit）
+lynx-start init myapp-saas --preset saas --registry <本仓库目录>  # 或：一条命令装齐 SaaS 底座（identity+session+access+audit+organization）
 lynx-start add identity@0.1.1 --registry <本仓库目录>  # 可选：钉版本安装（git tag）
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
 lynx-start add audit --registry <本仓库目录>      # 审计：RPC 拦截器自动记录 + 显式记录 + 查询（零依赖）
+lynx-start add organization --registry <本仓库目录>  # 组织：组织与成员事实（创建者即 owner；依赖 identity，安装器校验）
 
 # registry 模块出新版时（三方合并：本地 / 安装基线 / upstream）
 git add -A && git commit -m wip    # update 写盘不可回滚，先 commit
@@ -88,9 +89,11 @@ GLOSSARY.md 统一语言
 | 模块 | 版本 | 说明 |
 |---|---|---|
 | `demo` | 0.1.0 | 单实体 CRUD 样例，验证装配管线（不承载业务语义） |
-| `identity` | 0.1.0 | 注册/登录（Argon2id 口令散列 + HS256 JWT，purpose 域隔离）/自助改密；向应用贡献 Bearer 认证器——安装后未声明 `anonymous` 的方法自动要求认证。事件目录：`identity.user.created` / `identity.user.password-changed`。安全边界：令牌无吊销（TTL 默认 30m，停用即时生效需每请求回读）；生产部署必须更换 `identity.secret`（Assemble 对开发默认密钥打警告） |
+| `identity` | 0.1.1 | 注册/登录（Argon2id 口令散列 + HS256 JWT，purpose 域隔离）/自助改密；向应用贡献 Bearer 认证器——安装后未声明 `anonymous` 的方法自动要求认证。事件目录：`identity.user.created` / `identity.user.password-changed`。安全边界：令牌无吊销（TTL 默认 30m，停用即时生效需每请求回读）；生产部署必须更换 `identity.secret`（Assemble 对开发默认密钥打警告） |
 | `session` | 0.1.0 | **依赖 identity**（首个跨模块依赖，安装器校验 DAG）。把 identity 的无状态令牌升级为可吊销会话：CreateSession（principal 驱动）→ 访问(15m)+刷新(30d)令牌对；Refresh 轮换刷新令牌（旧 jti 重放即吊销整个会话）；Logout/LogoutAll；订阅 `identity.user.password-changed` 自动全局吊销。访问令牌与 identity 令牌在认证链共存 |
 | `access` | 0.1.0 | **依赖 identity**。RBAC：角色目录在配置段声明（`access.roles`，可审计），分配事实落库（幂等 Grant/Revoke）；**Enricher 在认证后注入 roles/permissions claims**——任何模块的方法可在 proto 里声明 `permissions:[...]`（MATCH_ALL）或 `roles:[...]`（MATCH_ANY），与令牌来源无关；bootstrap 管理员邮箱启动期收敛。管理 API 需 `access.assignment.write` 权限 |
+| `audit` | 0.1.0 | 审计：RPC 拦截器自动记录 + 显式记录（同事务）+ 分页查询（append-only，零模块依赖） |
+| `organization` | 0.1.0 | **依赖 identity**。组织与成员事实（首个账号域之外的业务模块）：组织 = 结构与成员，不自带 RBAC——成员带 `is_owner` 结构标记（创建者即 owner、owner-only 管理、最后一个 owner 不可离开），角色语义留给 access 表达；slug 全局唯一且创建后不可变；AddMember 经 identity 只读端口校验用户存在（幂等）。事件目录：`organization.organization.created` / `organization.member.added` / `organization.member.removed` |
 
 > 模块必须是真实可编译代码：kernel 的任何破坏性变更都会在本仓
 > `go build ./...` 立即暴露，而不是等到某个应用安装时才炸。这是
@@ -162,11 +165,12 @@ export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
 lynx-start init myapp --module github.com/acme/myapp --registry <this-repo>
 cd myapp
 lynx-start add demo --registry <this-repo>      # sample: verifies the assembly pipeline
-lynx-start init myapp-saas --preset saas --registry <this-repo>  # or: one command installs the SaaS account base (identity+session+access+audit)
+lynx-start init myapp-saas --preset saas --registry <this-repo>  # or: one command installs the SaaS base (identity+session+access+audit+organization)
 lynx-start add identity@0.1.1 --registry <this-repo>  # optional: pin a version (git tag)
 lynx-start add session --registry <this-repo>    # revocable session token pair (depends on identity, validated by the installer)
 lynx-start add access --registry <this-repo>     # authorization: RBAC + claims injection (depends on identity)
 lynx-start add audit --registry <this-repo>      # audit: RPC interceptor auto-recording + explicit recording + queries (zero deps)
+lynx-start add organization --registry <this-repo>  # organization: org & membership facts (creator is owner; depends on identity)
 
 # When a registry module ships a new version (three-way merge: local / install baseline / upstream)
 git add -A && git commit -m wip    # update writes are not rollback-safe — commit first
@@ -226,6 +230,7 @@ GLOSSARY.md  ubiquitous language
 | `session` | 0.1.0 | **Depends on identity** (first cross-module dependency, DAG-validated by the installer). Upgrades identity's stateless tokens to revocable sessions: CreateSession (principal-driven) → access(15m)+refresh(30d) token pair; Refresh rotates the refresh token (replaying an old jti revokes the whole session); Logout/LogoutAll; subscribes to `identity.user.password-changed` for automatic global revocation. Access tokens and identity tokens coexist in the auth chain |
 | `access` | 0.1.0 | **Depends on identity**. RBAC: the role catalog is declared in the config section (`access.roles`, auditable), assignment facts live in the DB (idempotent Grant/Revoke); **an Enricher injects roles/permissions claims after authentication** — any module's method may declare `permissions:[...]` (MATCH_ALL) or `roles:[...]` (MATCH_ANY) in proto, regardless of token origin; bootstrap admin emails converge at startup. Managing the API requires the `access.assignment.write` permission |
 | `audit` | 0.1.0 | Audit: RPC interceptor auto-recording + explicit recording (same transaction) + paginated query (append-only, zero module dependencies) |
+| `organization` | 0.1.0 | **Depends on identity**. Organizations and membership facts (the first module beyond the account domain): structure and membership, not RBAC — members carry an `is_owner` structural flag (creator is owner, owner-only management, the last owner cannot leave); role semantics are left to access. Slug is globally unique and immutable after creation; AddMember verifies user existence via identity's read-only port (idempotent). Event catalog: `organization.organization.created` / `organization.member.added` / `organization.member.removed` |
 
 > Modules must be real, compilable code: any kernel breaking change surfaces in
 > this repo's `go build ./...` immediately — not when some app installs the

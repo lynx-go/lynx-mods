@@ -6,6 +6,26 @@
 
 ## Unreleased
 
+- **registry 第 6 个模块 `organization` v0.1.0(组织与成员事实,首个账号域之外的业务模块;命名纪律:除局部短变量外一律全称,模块名/目录/文件名同为全称)**:
+  - 定位:组织 = 结构与成员事实,不自带 RBAC——成员带 `IsOwner` 结构标记
+    (创建者即 owner,owner-only 管理;最后一个 owner 不可离开,owner 不可被
+    他人移除),角色/权限语义留给 access 的角色目录表达;slug 全局唯一
+    (唯一索引,冲突映射 `ErrSlugTaken`),创建后不可变。
+  - API 面(全部 authenticated,v1 不做组织级 RBAC——成员资格/owner 校验在
+    app 层):CreateOrganization/GetOrganization(仅成员可见)/
+    ListMyOrganizations/RenameOrganization/AddMember(幂等,经 identity
+    只读端口校验用户存在)/RemoveMember(幂等,不可移 owner)/ListMembers/
+    Leave(最后一个 owner 拒绝)。
+  - 事件:`organization.organization.created` / `organization.member.added` /
+    `organization.member.removed`;DependsOn identity(domain 级只读消费,
+    access 同款 userReader 模式);v0.1 零配置段;迁移
+    `organization_organizations` / `organization_members`(独立版本表,
+    user_id 只存 ID 不设外键)。
+  - 工程:item.json 声明 `moduleDependencies [{"identity": ">=0.1.1"}]` +
+    `kernelConstraint ">=0.4.0"` + `goDependencies kernel@v0.4.0`;guard 两件
+    (domain 纯度 + AssertDepsAtAPILayer)、policy_test(全方法非匿名)、
+    DB 门控测试真库验证;CI e2e matrix 增 `identity organization` 边与
+    全量组合;saas 预设纳入 organization(底座从纯账号域扩展到组织结构)。
 - **M3 完结(2026-10-25 第四批)**:
   - I-14 供应链锁 `.lynx-start/lock.json`:每模块记解析版本、来源
     (tag/worktree)与 commit、基线文件 sha256。add/update 写入;update
