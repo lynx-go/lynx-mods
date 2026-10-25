@@ -4,8 +4,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
 	"sort"
+	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/lynx-go/lynx"
@@ -19,6 +23,9 @@ import (
 	grpcapiprotopolicy "github.com/lynx-go/grpcapi/policy/protopolicy"
 	grpcapiserver "github.com/lynx-go/grpcapi/server"
 	"github.com/lynx-go/lynx-start/kernel"
+	"google.golang.org/genproto/googleapis/api/annotations"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"{{.ModulePath}}/internal/bootstrap"
 	"{{.ModulePath}}/internal/config"
@@ -115,6 +122,8 @@ func setup(app lynx.App) error {
 	}
 	app.Register(bootstrap.NewAPIService(srv, logger))
 
+	printRouteTable(installed, set)
+
 	if len(agg.Tasks) > 0 {
 		scheduler, err := schedule.NewScheduler(agg.Tasks)
 		if err != nil {
@@ -135,4 +144,73 @@ func buildPolicies(ctx context.Context, installed []kernel.InstalledModule) (*gr
 		Provider: grpcapiprotopolicy.New(grpcapiprotopolicy.Options{}),
 		Registry: grpcapipolicy.DefaultRegistry(),
 	})
+}
+
+// printRouteTable 启动期打印 HTTP 路由表（proto 的 google.api.http 注解驱动），
+// 免去翻 proto 找路径：方法、路径、RPC 全名与认证要求一屏可见。手写的
+// ExtraRoutes 与 gRPC 面（:9060）不在此列。
+func printRouteTable(installed []kernel.InstalledModule, set *grpcapipolicy.Set) {
+	type routeRow struct{ method, path, rpc, auth string }
+	var rows []routeRow
+	for _, fd := range kernel.PolicyFiles(kernel.Descriptors(installed)) {
+		services := fd.Services()
+		for i := 0; i < services.Len(); i++ {
+			sd := services.Get(i)
+			methods := sd.Methods()
+			for j := 0; j < methods.Len(); j++ {
+				md := methods.Get(j)
+				rpcName := string(sd.FullName()) + "/" + string(md.Name())
+				auth := "auth"
+				if set.IsAnonymous("/" + rpcName) {
+					auth = "anonymous"
+				}
+				for _, hr := range httpRules(md) {
+					rows = append(rows, routeRow{method: hr[0], path: hr[1], rpc: rpcName, auth: auth})
+				}
+			}
+		}
+	}
+	if len(rows) == 0 {
+		return
+	}
+	sort.Slice(rows, func(a, b int) bool { return rows[a].path < rows[b].path })
+	w := tabwriter.NewWriter(os.Stdout, 2, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "HTTP routes:")
+	for _, r := range rows {
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", r.method, r.path, r.rpc, r.auth)
+	}
+	_ = w.Flush()
+}
+
+// httpRules 抽取方法的 google.api.http 注解（primary 与 additional_bindings）。
+func httpRules(md protoreflect.MethodDescriptor) [][2]string {
+	if md.Options() == nil {
+		return nil
+	}
+	rule, ok := proto.GetExtension(md.Options(), annotations.E_Http).(*annotations.HttpRule)
+	if !ok || rule == nil {
+		return nil
+	}
+	add := func(r *annotations.HttpRule, out *[][2]string) {
+		switch p := r.Pattern.(type) {
+		case *annotations.HttpRule_Get:
+			*out = append(*out, [2]string{"GET", p.Get})
+		case *annotations.HttpRule_Put:
+			*out = append(*out, [2]string{"PUT", p.Put})
+		case *annotations.HttpRule_Post:
+			*out = append(*out, [2]string{"POST", p.Post})
+		case *annotations.HttpRule_Delete:
+			*out = append(*out, [2]string{"DELETE", p.Delete})
+		case *annotations.HttpRule_Patch:
+			*out = append(*out, [2]string{"PATCH", p.Patch})
+		case *annotations.HttpRule_Custom:
+			*out = append(*out, [2]string{strings.ToUpper(p.Custom.GetKind()), p.Custom.GetPath()})
+		}
+	}
+	var out [][2]string
+	add(rule, &out)
+	for _, ab := range rule.GetAdditionalBindings() {
+		add(ab, &out)
+	}
+	return out
 }

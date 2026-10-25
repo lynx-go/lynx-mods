@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	grpcapiserver "github.com/lynx-go/grpcapi/server"
@@ -32,6 +33,9 @@ func NewDeps(app lynx.App, cfg *config.Config, logger *slog.Logger) (kernel.Deps
 	}
 	if err := sqldb.Ping(); err != nil {
 		_ = sqldb.Close()
+		if hint := HintDB(err); hint != "" {
+			return kernel.Deps{}, nil, fmt.Errorf("ping database: %w\n%s", err, hint)
+		}
 		return kernel.Deps{}, nil, fmt.Errorf("ping database: %w", err)
 	}
 	db := bun.NewDB(sqldb, pgdialect.New())
@@ -45,6 +49,24 @@ func NewDeps(app lynx.App, cfg *config.Config, logger *slog.Logger) (kernel.Deps
 		Logger: logger,
 	}
 	return deps, func() { _ = db.Close() }, nil
+}
+
+// HintDB 对最常见的本地连接失败形态（端口被既有 Postgres 占用→撞上别家
+// 凭据）给出排障提示；migrate 与 server 启动共用。错误形态不匹配时返回空串。
+func HintDB(err error) string {
+	if err == nil {
+		return ""
+	}
+	s := err.Error()
+	for _, marker := range []string{
+		"SASL", "password authentication failed",
+		"connection refused", "dial tcp", "failed to initialize",
+	} {
+		if strings.Contains(s, marker) {
+			return "hint: another local Postgres may already own this port — set POSTGRES_PORT in .env and re-run `mise run db:up`, or point data.database.source at your server"
+		}
+	}
+	return ""
 }
 
 // APIService 把 grpcapi Server 托管进 lynx 生命周期：Start 阻塞运行

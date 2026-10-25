@@ -19,6 +19,7 @@ import (
 	"github.com/lynx-go/lynx-start/kernel"
 	"github.com/lynx-go/lynx-start/kernel/goosekit"
 	"github.com/uptrace/bun/driver/pgdriver"
+	"{{.ModulePath}}/internal/bootstrap"
 	"{{.ModulePath}}/internal/modules"
 )
 
@@ -69,6 +70,11 @@ func main() {
 
 func fatal(v any) {
 	fmt.Fprintln(os.Stderr, "migrate:", v)
+	if err, ok := v.(error); ok {
+		if hint := bootstrap.HintDB(err); hint != "" {
+			fmt.Fprintln(os.Stderr, hint)
+		}
+	}
 	os.Exit(1)
 }
 
