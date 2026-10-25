@@ -7,6 +7,7 @@ import (
 	"go/format"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
@@ -34,9 +35,15 @@ func cmdAdd(args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("usage: lynx-start add <module> [-o] [--dry-run] [--registry <dir>]")
+		return fmt.Errorf("usage: lynx-start add <module>[@<version>] [-o] [--dry-run] [--registry <dir>]")
 	}
+	// name@version：无版本取 registry 工作区最新；有版本从 git tag
+	// modules/<name>/v<version> 提取（可复现安装）。
 	name := fs.Arg(0)
+	version := ""
+	if base, ver, found := strings.Cut(name, "@"); found {
+		name, version = base, ver
+	}
 	appDir, err := filepath.Abs(*dir)
 	if err != nil {
 		return err
@@ -58,10 +65,11 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
-	item, err := idx.Item(*registryDir, name)
+	item, cleanup, err := idx.ItemAt(*registryDir, name, version)
 	if err != nil {
 		return err
 	}
+	defer cleanup()
 
 	// 模块依赖（domain 级 DAG）必须已装。
 	for _, dep := range item.ModuleDependencies {
@@ -125,10 +133,19 @@ func cmdAdd(args []string) error {
 		if err := appendConfigFragment(appDir, name, item.ConfigFragment); err != nil {
 			return err
 		}
-		m.Modules = append(m.Modules, manifest.Module{Name: item.Name, Version: item.Version})
-		if err := m.Save(appDir); err != nil {
-			return err
-		}
+	}
+
+	// 4) 基线快照 + 版本 pin：无论首装还是重装（-o），凡本次被 upstream
+	//    形态写入的文件都进基线——update 三方合并的 base 由此而来。
+	files := append([]string{}, res.Created...)
+	files = append(files, res.Skipped...)
+	sort.Strings(files)
+	if err := syncBaseline(appDir, item.Name, res); err != nil {
+		return fmt.Errorf("snapshot install baseline: %w", err)
+	}
+	m.Set(manifest.Module{Name: item.Name, Version: item.Version, Files: files})
+	if err := m.Save(appDir); err != nil {
+		return err
 	}
 
 	fmt.Printf("\n✓ module %s@%s installed (%d written, %d skipped)\n", item.Name, item.Version, len(res.Created), len(res.Skipped))

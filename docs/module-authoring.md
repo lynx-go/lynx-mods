@@ -19,7 +19,23 @@
 2. **模块间只许 domain 级依赖**。跨模块 import 只允许对方的
    `domain/<name>` 包；app/infra/api 互引直接编不过（目录布局强制），
    编译器就是架构护栏。
-3. **六条契约**（ADR-0004）速查：
+3. **安全敏感实现住 kernel，模块源码只留编排**。源码分发与库的分界
+   不是「重要不重要」，而是**「应用会不会想改」与「出了事要不要能远程修」**：
+
+   | 代码性质 | 分发通道 | 例子 |
+   |---|---|---|
+   | 用户会改的业务逻辑 | 模块源码（`lynx-start add`） | 聚合、用例流程、policy 取舍 |
+   | 用户不想改、出 CVE 必须能推送修复 | kernel（Go module，semver） | Argon2 参数、JWT 校验、时序对齐哑靶 |
+   | 接口派生物 | 生成（buf / protoc 插件） | DTO、HTTP/GRPC 骨架 |
+
+   模块源码一旦装进应用就与 registry 断连——`lynx-start update` 靠人触发
+   三方合并，安全修复不能指望它。所以凡是「参数错了就是漏洞」的实现
+   （哈希参数、恒定时间比较、令牌校验、随机数），一律下沉 kernel：
+   应用 `go get kernel@fix` 即修复，无需逐模块合并。反例教训：identity
+   曾把登录时序对齐的哑靶 Argon2 常量写死在模块源码里——kernel 升参数后
+   哑靶失配、时序对齐静默失效；v0.1.1 起改调 `password.DummyHash()`
+   （kernel 惰性生成，参数恒同参）。
+4. **六条契约**（ADR-0004）速查：
 
    | # | 契约 | 落点 |
    |---|---|---|
@@ -245,9 +261,29 @@ import todo "<app-module-path>/internal/api/todo"
    - `publishedEvents`：展示用目录数据，**与 `Module().PublishedEvents` 保持
      一致**（后者是启动期被校验的事实源）；
 3. 在 `registry/registry.json` 的 `items` 里登记 `{ "name", "path" }`；
-4. 加入根 `go.work`，`mise run lint && mise run test` 全绿后提交。
-   版本语义：破坏性变更升 minor 前缀（0.x 阶段），`lynx-start update`
-   （diff 语义）落地前，应用侧更新=git 三方合并源码。
+4. 加入根 `go.work`，`mise run lint && mise run test` 全绿后提交；
+5. **发布版本 = 打 git tag** `modules/<name>/v<x.y.z>`（与 `kernel/v<x.y.z>`
+   同款子目录前缀形式）。tag 必须指向「item.json 已写该版本号」的提交——
+   安装器会校验 tag 与清单一致，漂移直接拒绝。版本语义（0.x 阶段）：
+   破坏性变更（迁移不兼容 / proto 字段删改 / 装配签名变化）升 minor，
+   安全修复与向后兼容追加升 patch。
+
+### 版本安装与更新（应用侧）
+
+- `lynx-start add todo@0.1.0` 从 tag 提取该版本源码（可复现安装）；
+  不带 `@version` 取 registry 工作区最新形态；
+- `add` 在应用 `.lynx-start/baseline/<name>/` 写**安装基线**（安装后最终
+  形态：已改写导入路径、已 gofmt）。建议把 `.lynx-start/` 随应用提交——
+  它是跨机器可用的更新依据；
+- `lynx-start update todo` 三方合并到 registry 最新：**本地 / 基线 /
+  upstream**。本地与 upstream 改动不重叠则自动合并；同区改动打 git
+  冲突标记（`<<<<<<< yours / baseline / theirs`），覆盖前的本地副本留在
+  `.lynx-start/backup/`；upstream 删除的文件只提示不自动删。
+  合并写盘不可回滚——**update 前先 commit 应用**；
+- 基线不变量：基线 ≡ upstream 最近一次同步形态。冲突文件解决后基线仍为
+  upstream 形态，你的解决结果作为本地改动被下一次 update 自然保留。
+  旧清单（无 `files` 字段）没有基线，update 会提示 `add <name> -o` 重建
+  （会覆盖本地文件，先提交本地改动）。
 
 ## 5. 常见改动配方（改已装模块）
 

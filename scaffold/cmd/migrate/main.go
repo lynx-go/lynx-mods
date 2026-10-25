@@ -23,7 +23,7 @@ import (
 )
 
 // defaultDSN 与 configs/config.yaml 的 data.database.source 缺省同款
-//（模板变量 {{.DefaultDSN}}）。改了 config.yaml 的 DSN 后，用环境变量
+// （模板变量 {{.DefaultDSN}}）。改了 config.yaml 的 DSN 后，用环境变量
 // 或 -dsn 覆盖，或同步改这里。
 const defaultDSN = "{{.DefaultDSN}}"
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	sessionv1 "github.com/lynx-go/lynx-start/modules/session/genproto/session/v1"
 	"github.com/lynx-go/lynx-start/modules/session/domain/session"
+	sessionv1 "github.com/lynx-go/lynx-start/modules/session/genproto/session/v1"
 	appsession "github.com/lynx-go/lynx-start/modules/session/internal/app/session"
 	infrasession "github.com/lynx-go/lynx-start/modules/session/internal/infra/session"
 	"github.com/lynx-go/lynx-start/modules/session/internal/infra/session/migrations"

@@ -40,3 +40,23 @@ func TestUniqueSalts(t *testing.T) {
 		t.Fatal("same password must produce different hashes (random salt)")
 	}
 }
+
+func TestDummyHashMatchesCurrentParams(t *testing.T) {
+	dummy, err := DummyHash()
+	if err != nil {
+		t.Fatalf("dummy: %v", err)
+	}
+	// 哑靶必须能被 Verify 消费且参数与当前实现一致（时序对齐的前提）。
+	ok, err := Verify("definitely-wrong", dummy)
+	if err != nil || ok {
+		t.Fatalf("verify dummy: ok=%v err=%v", ok, err)
+	}
+	if !strings.HasPrefix(dummy, "$argon2id$v=19$m=65536,t=3,p=4$") {
+		t.Fatalf("dummy params drifted from Hash: %s", dummy)
+	}
+	// 稳定：多次调用返回同一份（进程内缓存）。
+	again, _ := DummyHash()
+	if again != dummy {
+		t.Fatal("DummyHash must be memoized per process")
+	}
+}

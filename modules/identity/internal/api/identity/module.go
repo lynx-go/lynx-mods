@@ -3,8 +3,8 @@ package identity
 import (
 	"context"
 
-	identityv1 "github.com/lynx-go/lynx-start/modules/identity/genproto/identity/v1"
 	"github.com/lynx-go/lynx-start/modules/identity/domain/identity"
+	identityv1 "github.com/lynx-go/lynx-start/modules/identity/genproto/identity/v1"
 	appidentity "github.com/lynx-go/lynx-start/modules/identity/internal/app/identity"
 	infraindentity "github.com/lynx-go/lynx-start/modules/identity/internal/infra/identity"
 	"github.com/lynx-go/lynx-start/modules/identity/internal/infra/identity/migrations"

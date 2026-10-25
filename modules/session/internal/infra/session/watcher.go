@@ -7,8 +7,8 @@ import (
 
 	"github.com/lynx-go/lynx"
 	"github.com/lynx-go/lynx-start/kernel/events"
-	appsession "github.com/lynx-go/lynx-start/modules/session/internal/app/session"
 	domainsession "github.com/lynx-go/lynx-start/modules/session/domain/session"
+	appsession "github.com/lynx-go/lynx-start/modules/session/internal/app/session"
 	"github.com/lynx-go/lynx/eventbus"
 )
 

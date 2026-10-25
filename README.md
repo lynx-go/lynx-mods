@@ -17,7 +17,8 @@
 | **源码模块**（`modules/`，registry items） | 一个业务域的四层实现（domain/app/api/infra + proto + 迁移 + 配置段） | 无承诺——源码即你的 |
 
 「稳定」由 Kernel 承担（编译期类型契约），「可扩展」由源码模块承担（改的是自己的
-代码，不是插件钩子），「演化」由 registry 承担（git tag 版本 + diff 更新）。
+代码，不是插件钩子），「演化」由 registry 承担（git tag 版本 + 安装基线三方合并更新，
+安全敏感实现下沉 Kernel 经 semver 推送修复）。
 shadcn/ui 是参照系：Radix 是库、组件是源码、registry 是分发协议。
 
 ## 快速开始
@@ -30,9 +31,13 @@ cd cli && go build -o /usr/local/bin/lynx-start .
 lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
 lynx-start add demo --registry <本仓库目录>      # 样例：验证装配管线
-lynx-start add identity --registry <本仓库目录>   # 身份：注册/登录/改密 + Bearer 认证器
+lynx-start add identity@0.1.1 --registry <本仓库目录>  # 可选：钉版本安装（git tag）
 lynx-start add session --registry <本仓库目录>    # 会话：可吊销令牌对（依赖 identity，安装器校验）
 lynx-start add access --registry <本仓库目录>     # 授权：RBAC + claims 注入（依赖 identity）
+
+# registry 模块出新版时（三方合并：本地 / 安装基线 / upstream）
+git add -A && git commit -m wip    # update 写盘不可回滚，先 commit
+lynx-start update identity --registry <本仓库目录>
 
 # 跑起来（顺序重要：genproto 未生成时 go mod tidy 必失败；mise 钉版 go/buf）
 mise install && mise trust
@@ -60,7 +65,8 @@ modules/    registry items：每模块是**真实 Go module**（自带 go.mod、
             genproto 与 buf 配置，在本仓内可编译、可测试、CI 覆盖）；
             lynx-start add 安装时改写导入路径为应用 module path（shadcn alias
             rewrite 的对应物），并排除 go.mod/genproto 等工程文件
-cli/        lynx-start 安装器（init / add / list；shadcn 语义：默认不覆盖、幂等；渲染与注入自动 gofmt）
+cli/        lynx-start 安装器（init / add / update / list；shadcn 语义：默认不覆盖、幂等；
+            add 支持 name@version（git tag）、写安装基线，update 做三方合并）
 registry/   registry.json 模块索引
 scaffold/   lynx-start init 生成的应用骨架模板
 docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 六条契约）
@@ -99,9 +105,9 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 ## Roadmap
 
-- `lynx-start update`（diff 语义）/ `lynx-start remove` / `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
-- 远端 registry（git tag 版本 pin）
-- 下一批业务模块（access 授权 / audit 审计 / session 会话与令牌吊销…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
+- `lynx-start remove` / `lynx-start doctor`（契约校验：import guard / 迁移状态 / DAG）
+- 远端 registry（本地 git tag 版本 pin 已支持：`add <m>@<ver>` / `update`；远端仓库解析后续接入）
+- 下一批业务模块（audit 审计…；SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 
 ---
 
