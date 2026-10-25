@@ -262,6 +262,13 @@ import todo "<app-module-path>/internal/api/todo"
    - `configFragment`：追加进应用 config.yaml 的段（YAML 文本）；
    - `publishedEvents`：展示用目录数据，**与 `Module().PublishedEvents` 保持
      一致**（后者是启动期被校验的事实源）；
+一条命令完成登记与三处同步（item.json 骨架 / registry.json / go.work）：
+
+   ```bash
+   lynx-start registry add modules/<name>   # 骨架生成后补 description/publishedEvents
+   lynx-start registry check                # 一致性体检（可入 CI）
+   ```
+
 3. 在 `registry/registry.json` 的 `items` 里登记 `{ "name", "path" }`；
 4. 加入根 `go.work`，`mise run lint && mise run test` 全绿后提交；
 5. **发布版本 = 打 git tag** `modules/<name>/v<x.y.z>`（与 `kernel/v<x.y.z>`

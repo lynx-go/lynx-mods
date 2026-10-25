@@ -284,6 +284,13 @@ Put the module into `modules/<name>/` of this repo as a **real Go module**:
    - `configFragment`: the YAML fragment appended to the app's config.yaml;
    - `publishedEvents`: catalog data for display, **kept in sync with
      `Module().PublishedEvents`** (the latter is the validated source of truth);
+Registering is one command (item.json skeleton / registry.json / go.work kept consistent):
+
+   ```bash
+   lynx-start registry add modules/<name>   # fill description/publishedEvents after the skeleton
+   lynx-start registry check                # consistency check (CI-friendly)
+   ```
+
 3. Register `{ "name", "path" }` in the `items` of `registry/registry.json`;
 4. Add to the root `go.work`; `mise run lint && mise run test` green, then commit;
 5. **Releasing = pushing a git tag** `modules/<name>/v<x.y.z>` (same
