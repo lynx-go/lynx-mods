@@ -28,6 +28,10 @@
     {
       "name": "organization",
       "path": "modules/organization"
+    },
+    {
+      "name": "task",
+      "path": "modules/task"
     }
   ]
 }

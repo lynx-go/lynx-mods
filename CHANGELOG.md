@@ -6,6 +6,21 @@
 
 ## Unreleased
 
+- **registry 第 8 个模块 `task` v0.1.0(组织内任务,第一个组织挂靠业务资源——
+  ADR-0008 姿势首秀 + ADR-0007 通道②首秀)**:
+  - 姿势落实:organization_id 是租户键(NOT NULL 只存 ID,契约④;本域无业务
+    唯一约束,若有必含 organization_id);**租户语境进端口签名**——Get/List/
+    Delete 一律携带 organizationID,ID 泄露也跨组织取不到(防漏的端口级表达,
+    repo DB 测试固化跨组织负路径);成员资格经 organization domain 只读端口
+    校验(userReader 模式第四处,写方法一律报错);资源路由挂组织层级
+    /v1/organizations/{id}/tasks。
+  - 权限语义:成员即可创建/查看(v1 不做组织级 RBAC);完成与删除限创建者
+    (creator_id 是 v1 资源所有权裁决依据);Complete/Delete 幂等(重复为 no-op
+    不重复发事件)。
+  - 事件:task.task.created / task.task.completed;DependsOn organization
+    >=0.1.0(成员资格 0.1.0 即有)。CI matrix 增 task 单模块组合(DAG 自动
+    解析 identity+organization 的验证)与全量组合;**不进 saas 预设**(业务
+    资源非底座)。
 - **ADR-0008 软多租户横切约定:organization_id 即唯一租户键**(路线图挂了三批
   的"tenancy 越晚决定 retrofit 越痛"兑现——第一个业务资源模块出现前定约定,
   当前零 retrofit 成本)。四定案:①租户键不变量——organization_id 是唯一

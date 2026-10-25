@@ -66,7 +66,7 @@ cd "$WORK"
 cd e2eapp
 mise trust >/dev/null 2>&1 || true
 # 模块组合可经 LYNX_E2E_MODULES 覆盖（CI 组合矩阵：单模块/依赖边/全量）。
-MODULES="${LYNX_E2E_MODULES:-demo identity session access audit organization notification}"
+MODULES="${LYNX_E2E_MODULES:-demo identity session access audit organization notification task}"
 for m in $MODULES; do "$WORK/lyx" add "$m" --registry "$ROOT" >/dev/null; done
 # 依赖负路径：session 依赖 identity，干净应用上直接装必须被拒。
 # 依赖负路径与 update 场景以 identity 为主角：组合不含 identity 时跳过。

@@ -91,7 +91,8 @@ jobs:
           - "identity access"
           - "identity organization"
           - "identity organization notification"
-          - "demo identity session access audit organization notification"
+          - "task"
+          - "demo identity session access audit organization notification task"
     env:
       LYNX_E2E_MODULES: ${{ matrix.modules }}
     steps:

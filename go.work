@@ -10,4 +10,5 @@ use (
 	./modules/notification
 	./modules/organization
 	./modules/session
+	./modules/task
 )
