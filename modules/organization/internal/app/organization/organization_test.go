@@ -386,7 +386,7 @@ func TestEventPayloads(t *testing.T) {
 		}
 	}
 	last := pub.Envelopes()[len(pub.Envelopes())-1]
-	want := `{"organization_id":"` + o.ID + `","user_id":"alice"}`
+	want := `{"organization_id":"` + o.ID + `","organization_name":"Acme Inc","user_id":"alice"}`
 	if string(last.Payload) != want {
 		t.Errorf("member.added payload = %s, want %s", last.Payload, want)
 	}

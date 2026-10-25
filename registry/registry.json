@@ -22,6 +22,10 @@
       "path": "modules/audit"
     },
     {
+      "name": "notification",
+      "path": "modules/notification"
+    },
+    {
       "name": "organization",
       "path": "modules/organization"
     }

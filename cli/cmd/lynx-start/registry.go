@@ -249,13 +249,19 @@ func registryCheck(root string) error {
 	goWork := string(goWorkRaw)
 
 	fmt.Printf("lynx-start registry check: %s (%d items)\n", root, len(idx.Items))
+	// 先全量收集登记名再做依赖检查（依赖检查与登记顺序无关——
+	// registry.json 按字母序排列时，依赖模块可能排在声明方之后）。
 	registered := map[string]bool{}
 	for _, it := range idx.Items {
-		if registered[it.Name] {
+		registered[it.Name] = true
+	}
+	seen := map[string]bool{}
+	for _, it := range idx.Items {
+		if seen[it.Name] {
 			fail("registry.json duplicate item %s", it.Name)
 			continue
 		}
-		registered[it.Name] = true
+		seen[it.Name] = true
 		dir := filepath.Join(root, it.Path)
 		if _, err := os.Stat(dir); err != nil {
 			fail("%s directory %s exists", it.Name, it.Path)

@@ -6,6 +6,35 @@
 
 ## Unreleased
 
+- **registry 第 7 个模块 `notification` v0.1.0(站内通知,首个纯事件目录消费模块)**:
+  - 定位:通知 = 事件的事实回执。订阅 `identity.user.password-changed` 与
+    `organization.member.added` / `organization.member.removed` 自动生成
+    通知——内容在发生时刻定格为快照(title/body 落库,不引用模板;
+    payload 保留原始事件载荷供前端跳转)。**DependsOn identity+organization
+    却零 Go import**(契约②字符串目录消费,ConsumedEvents 启动期交叉校验
+    发布者在装)——依赖面与代码耦合面首次分离。
+  - API 面(全部 authenticated,通知只可见于收件人本人,user_id 取自
+    Principal 不信任请求参数):ListNotifications(分页+unread_only 过滤+
+    整户未读计数)/MarkNotificationRead(幂等,他人通知与不存在统一
+    NotFound 不泄露存在性)/MarkAllNotificationsRead(返回标记条数)。
+    写入仅经事件订阅,无发送 RPC——跨模块调用面(Go internal 规则下他
+    模块调不到本模块 UseCase)留待单独 ADR。
+  - 工程:watcher 单 Service 订多 topic——topic 是 module.<m> 前缀收敛,
+    同模块多事件共享 topic 必须去重后每话题只订一次(重复订阅会让事件
+    投递多遍,内存总线对同名 handler 亦拒绝注册);迁移
+    `notification_notifications`(jsonb payload + 部分索引未读计数);
+    item.json 声明 moduleDependencies
+    `[{"identity":">=0.1.1"},{"organization":">=0.1.1"}]` + kernelConstraint
+    >=0.4.0;e2e 负路径新增 organization@0.1.0 在装时 add notification
+    必须被版本约束拒绝(I-16 机制第二次实战);saas 预设纳入(六模块);
+    CI matrix 增 `identity organization notification` 边与全量组合。
+  - 顺手修 CLI:`registry check` 的依赖登记检查改顺序无关(原单遍扫描按
+    登记顺序构建 registered 集合,字母序下 notification 先于依赖
+    organization 出现即误报——既有缺陷被字母序掩盖至今)。
+- **`organization` v0.1.1:member.added/removed 事件载荷补
+  `organization_name`**(additive,通知文案可读:"你已被加入组织 Acme";
+  notification 声明 organization>=0.1.1 即源于此——版本范围约束的
+  真实需求用例)。
 - **breaking：安装布局镜像挂载 + 基线缓存分离（ADR-0006，v0.x 阶段直接 breaking）**：
   - 模块装入应用 `modules/<m>/` 专用区（`modules/` = registry 镜像区，
     `internal/` = 应用自有代码），`{domain,internal/{app,api,infra}}` 下尾段

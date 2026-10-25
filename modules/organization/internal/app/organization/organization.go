@@ -105,7 +105,8 @@ func (u *UseCase) Rename(ctx context.Context, actorID, organizationID, name stri
 // AddMember 加成员（owner-only；目标用户须存在于 identity；幂等——
 // 重复添加为 no-op，事件仅在状态变化时发布）。
 func (u *UseCase) AddMember(ctx context.Context, actorID, organizationID, userID string) error {
-	if _, err := u.repo.Get(ctx, organizationID); err != nil {
+	o, err := u.repo.Get(ctx, organizationID)
+	if err != nil {
 		return err
 	}
 	if err := u.requireOwner(ctx, organizationID, actorID); err != nil {
@@ -129,14 +130,17 @@ func (u *UseCase) AddMember(ctx context.Context, actorID, organizationID, userID
 		if !created {
 			return nil // 幂等 no-op：不重复发布事件
 		}
-		return u.publish(ctx, organization.EventMemberAdded, map[string]string{"organization_id": organizationID, "user_id": userID})
+		return u.publish(ctx, organization.EventMemberAdded, map[string]string{
+			"organization_id": organizationID, "organization_name": o.Name, "user_id": userID,
+		})
 	})
 }
 
 // RemoveMember 移除成员（owner-only；不可移除 owner——owner 只能自行离开；
 // 幂等——目标不存在为 no-op）。
 func (u *UseCase) RemoveMember(ctx context.Context, actorID, organizationID, userID string) error {
-	if _, err := u.repo.Get(ctx, organizationID); err != nil {
+	o, err := u.repo.Get(ctx, organizationID)
+	if err != nil {
 		return err
 	}
 	if err := u.requireOwner(ctx, organizationID, actorID); err != nil {
@@ -157,7 +161,9 @@ func (u *UseCase) RemoveMember(ctx context.Context, actorID, organizationID, use
 		if !removed {
 			return nil // 幂等 no-op：不重复发布事件
 		}
-		return u.publish(ctx, organization.EventMemberRemoved, map[string]string{"organization_id": organizationID, "user_id": userID})
+		return u.publish(ctx, organization.EventMemberRemoved, map[string]string{
+			"organization_id": organizationID, "organization_name": o.Name, "user_id": userID,
+		})
 	})
 }
 
@@ -189,7 +195,8 @@ func (u *UseCase) ListMembers(ctx context.Context, actorID, organizationID strin
 
 // Leave 成员自行离开（最后一个 owner 不可离开——组织不可无主）。
 func (u *UseCase) Leave(ctx context.Context, userID, organizationID string) error {
-	if _, err := u.repo.Get(ctx, organizationID); err != nil {
+	o, err := u.repo.Get(ctx, organizationID)
+	if err != nil {
 		return err
 	}
 	m, err := u.repo.Member(ctx, organizationID, userID)
@@ -213,7 +220,9 @@ func (u *UseCase) Leave(ctx context.Context, userID, organizationID string) erro
 		if !removed {
 			return nil // 幂等 no-op：不重复发布事件
 		}
-		return u.publish(ctx, organization.EventMemberRemoved, map[string]string{"organization_id": organizationID, "user_id": userID})
+		return u.publish(ctx, organization.EventMemberRemoved, map[string]string{
+			"organization_id": organizationID, "organization_name": o.Name, "user_id": userID,
+		})
 	})
 }
 
