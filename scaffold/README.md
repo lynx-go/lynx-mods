@@ -6,7 +6,7 @@ English version below.
 
 ## 已装模块
 
-见 `lynx-start.json`（安装清单）与 `internal/modules/modules.go`（装配登记）。
+见 `lynx-start.json`（安装清单）与 `modules/modules.go`（装配登记）。
 
 ## 快速开始
 
@@ -32,7 +32,7 @@ lynx-start add <module>
 ## 写自己的模块
 
 已装模块是源码，可直接改；要新增业务域，照 `demo` 模块的四层结构手写并登记到
-`internal/modules/modules.go`。完整步骤见
+`modules/modules.go`。完整步骤见
 [module-authoring 指南](https://github.com/lynx-go/lynx-start/blob/main/docs/module-authoring.md)
 （[English](https://github.com/lynx-go/lynx-start/blob/main/docs/module-authoring.en.md)）。
 
@@ -59,7 +59,7 @@ gateway) + bun/Postgres + goose migrations.
 
 ## Installed modules
 
-See `lynx-start.json` (install manifest) and `internal/modules/modules.go`
+See `lynx-start.json` (install manifest) and `modules/modules.go`
 (assembly registry).
 
 ## Quick start
@@ -89,7 +89,7 @@ lynx-start add <module>
 
 Installed modules are source code — edit them freely. To add a new business
 domain, follow the `demo` module's four-layer structure and register it in
-`internal/modules/modules.go`. Full walkthrough:
+`modules/modules.go`. Full walkthrough:
 [module authoring guide](https://github.com/lynx-go/lynx-start/blob/main/docs/module-authoring.en.md)
 ([中文](https://github.com/lynx-go/lynx-start/blob/main/docs/module-authoring.md)).
 

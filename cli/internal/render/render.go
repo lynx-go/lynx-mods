@@ -50,6 +50,11 @@ type Options struct {
 	// Rewrite 在模板执行（或原样复制）后对内容做最终变换（如安装时把
 	// 模块规范 module path 改写为应用 module path）。rel 用于按后缀过滤。
 	Rewrite func(rel string, content []byte) []byte
+	// Relocate 把源相对路径映射为目标相对路径（nil = 原样）。模块安装
+	// 用它做布局重定位（domain/<m>/** → modules/<m>/domain/** 等）。
+	// Skip/Rewrite 收到源路径；Created/Skipped 与写盘用目标路径——
+	// 产物路径空间（manifest Files/基线/update 合并）与落盘一致。
+	Relocate func(rel string) (string, error)
 	// Report 打印渲染动作（默认 fmt.Printf）。
 	Report func(format string, args ...any)
 }
@@ -82,6 +87,14 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 		if opts.Skip != nil && opts.Skip(rel) {
 			return nil
 		}
+		targetRel := rel
+		if opts.Relocate != nil {
+			mapped, err := opts.Relocate(rel)
+			if err != nil {
+				return fmt.Errorf("relocate %s: %w", rel, err)
+			}
+			targetRel = mapped
+		}
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
@@ -110,15 +123,15 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 				return fmt.Errorf("gofmt %s: %w", rel, err)
 			}
 		}
-		target := filepath.Join(dstDir, filepath.FromSlash(rel))
+		target := filepath.Join(dstDir, filepath.FromSlash(targetRel))
 		if _, statErr := os.Stat(target); statErr == nil && !opts.Overwrite {
-			res.Skipped = append(res.Skipped, rel)
-			report("skip   %s (exists, -o to overwrite)", rel)
+			res.Skipped = append(res.Skipped, targetRel)
+			report("skip   %s (exists, -o to overwrite)", targetRel)
 			return nil
 		}
 		if opts.DryRun {
-			res.Created = append(res.Created, rel)
-			report("dryrun %s", rel)
+			res.Created = append(res.Created, targetRel)
+			report("dryrun %s", targetRel)
 			return nil
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
@@ -127,8 +140,8 @@ func Tree(srcDir, dstDir string, data Data, opts Options) (*Result, error) {
 		if err := os.WriteFile(target, content, 0o644); err != nil {
 			return err
 		}
-		res.Created = append(res.Created, rel)
-		report("write  %s", rel)
+		res.Created = append(res.Created, targetRel)
+		report("write  %s", targetRel)
 		return nil
 	})
 	return res, err

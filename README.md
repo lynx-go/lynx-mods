@@ -73,10 +73,12 @@ kernel/     契约库（独立 Go module，semver）——v0.1.0 候选包清单
             configkit 配置段加载 · testutil 隔离测试库基座
 modules/    registry items：每模块是**真实 Go module**（自带 go.mod、
             genproto 与 buf 配置，在本仓内可编译、可测试、CI 覆盖）；
-            lynx-start add 安装时改写导入路径为应用 module path（shadcn alias
-            rewrite 的对应物），并排除 go.mod/genproto 等工程文件
-cli/        lynx-start 安装器（init / add / update / remove / doctor / audit / list / registry；shadcn 语义：默认不覆盖、幂等；
-            add 支持 name@version（git tag）、写安装基线，update 做三方合并）
+            lynx-start add 安装时重定位进应用 modules/<m>/ 专用区（尾段拍平，
+            ADR-0006）并改写导入路径（shadcn alias rewrite 的对应物），
+            排除 go.mod/genproto 等工程文件
+cli/        lynx-start 安装器（init / add / update / remove / generate / doctor / audit / list / registry；shadcn 语义：默认不覆盖、幂等；
+            add 支持 name@version（git tag）、基线缓存写 ~/.lynx-start（按模块@commit 区分、可重建，
+            应用只提交 lock+manifest），update 做三方合并）
 registry/   registry.json 模块索引
 scaffold/   lynx-start init 生成的应用骨架模板
 docs/adr/   决策记录（0001 bun / 0002 已废弃 / 0003 三层供给 / 0004 六条契约）
@@ -101,7 +103,7 @@ GLOSSARY.md 统一语言
 
 ## 模块六条契约（ADR-0004）
 
-1. 分层归属：`domain/<module>`（对外契约面）+ `internal/{app,api,infra}/<module>` + `proto/<module>/v1`，生成物本地 buf 生成
+1. 分层归属：`domain/<module>`（对外契约面）+ `internal/{app,api,infra}/<module>` + `proto/<module>/v1`（模块仓侧；装入应用后重定位进 `modules/<m>/` 并拍平尾段，见 ADR-0006），生成物本地 buf 生成
 2. 模块间仅 domain 级 DAG 依赖（编译器强制——domain 在 internal 之外，app/infra/api 互引直接编不过）；跨域走 Kernel 端口 + app 适配器 + 事件字符串目录
 3. 配置自治：模块自带 Config struct（`UnmarshalKey` 自有段），无全局 config.proto
 4. 迁移隔离：每模块独立 goose 版本表（`goose_<module>_db`），禁跨模块外键
@@ -112,7 +114,7 @@ GLOSSARY.md 统一语言
 
 模块暴露 `Module()`（静态：策略描述符/迁移/依赖声明）与 `Assemble(kernel.Deps)
 (kernel.Assembly, error)`（动态：Registrations/Services/Tasks/Authenticators/
-Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 列表是
+Stages/ExtraRoutes）。应用侧 `modules/modules.go` 的 `Installed` 列表是
 唯一登记点，`main.go` 聚合后交给 lynx + grpcapi，启动期 fail-closed 断言防漂移。
 
 ## 非目标（Non-goals）
@@ -208,9 +210,10 @@ kernel/     contract library (standalone Go module, semver) — v0.2.0 package s
             configkit config-section loading · testutil isolated test-DB harness
 modules/    registry items: each module is a REAL Go module (own go.mod,
             genproto and buf config — compiled and tested in this repo, CI-covered);
-            lynx-start add rewrites import paths to your app's module path (the
-            counterpart of shadcn's alias rewrite) and excludes engineering files
-cli/        lynx-start installer (init / add / update / remove / doctor / list;
+            lynx-start add installs into the app's modules/<m>/ zone (tail segment
+            flattened, ADR-0006) and rewrites import paths (the counterpart of
+            shadcn's alias rewrite), excluding engineering files
+cli/        lynx-start installer (init / add / update / remove / generate / doctor / list;
             shadcn semantics: never overwrite by default, idempotent;
             add supports name@version (git tag) and writes an install baseline,
             update performs a three-way merge)
@@ -239,7 +242,7 @@ GLOSSARY.md  ubiquitous language
 
 ## The six module contracts (ADR-0004)
 
-1. Layer ownership: `domain/<module>` (the outward contract surface) + `internal/{app,api,infra}/<module>` + `proto/<module>/v1`, generated code built locally with buf
+1. Layer ownership: `domain/<module>` (the outward contract surface) + `internal/{app,api,infra}/<module>` + `proto/<module>/v1` (module-repo side; installed into the app under `modules/<m>/` with the tail segment flattened — see ADR-0006), generated code built locally with buf
 2. Cross-module dependencies are domain-level DAG only (compiler-enforced — domain lives outside internal, so app/infra/api cross-imports simply do not compile); cross-domain integration goes through Kernel ports + app adapters + the string event catalog
 3. Config autonomy: each module carries its own Config struct (`UnmarshalKey` on its own section), no global config.proto
 4. Migration isolation: per-module goose version table (`goose_<module>_db`), no cross-module foreign keys
@@ -251,7 +254,7 @@ GLOSSARY.md  ubiquitous language
 A module exposes `Module()` (static: policy descriptors / migrations / dependency
 declarations) and `Assemble(kernel.Deps) (kernel.Assembly, error)` (dynamic:
 Registrations/Services/Tasks/Authenticators/Enrichers/Stages/ExtraRoutes). The
-`Installed` list in the app's `internal/modules/modules.go` is the single
+`Installed` list in the app's `modules/modules.go` is the single
 registration point; `main.go` aggregates and hands everything to lynx + grpcapi,
 with fail-closed startup assertions against drift.
 

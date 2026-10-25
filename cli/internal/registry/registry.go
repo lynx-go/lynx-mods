@@ -231,6 +231,48 @@ func (idx *Index) ItemAt(registryDir, name, version string) (*Item, func(), erro
 	return item, cleanup, nil
 }
 
+// ItemAtCommit 按名与 commit 提取该历史形态源码树（基线缓存重建用：
+// worktree 安装记当时 HEAD，tag 安装记 tag 指向——统一按 commit 寻址，
+// 与 tag 是否存在/移动无关）。expectedVersion 与树内 item.json 不一致
+// 即拒绝（registry 历史被改写，重建不再可信）。
+func (idx *Index) ItemAtCommit(registryDir, name, commit, expectedVersion string) (*Item, func(), error) {
+	if commit == "" || commit == "unknown" {
+		return nil, nil, fmt.Errorf("module %s: install source commit is unknown, cannot rebuild the baseline (re-install with `lynx-start add %s -o`)", name, name)
+	}
+	path, err := idx.modulePath(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := exec.Command("git", "-C", registryDir, "rev-parse", "--verify", "--quiet", commit+"^{commit}").Run(); err != nil {
+		return nil, nil, fmt.Errorf("module %s: commit %s not found in the registry repo (history rewritten?): rebuild the baseline with `lynx-start add %s -o`", name, shortHash(commit), name)
+	}
+	raw, err := exec.Command("git", "-C", registryDir, "archive", "--format=tar", commit, "--", path).Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git archive %s: %w", shortHash(commit), err)
+	}
+	tmp, err := os.MkdirTemp("", "lynx-start-registry-")
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup := func() { _ = os.RemoveAll(tmp) }
+	if err := untar(tmp, bytes.NewReader(raw)); err != nil {
+		cleanup()
+		return nil, nil, fmt.Errorf("extract %s: %w", shortHash(commit), err)
+	}
+	dir := filepath.Join(tmp, path)
+	item, err := loadItem(dir, name)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if item.Version != expectedVersion {
+		cleanup()
+		return nil, nil, fmt.Errorf("module %s: registry commit %s carries item.json version %q but the lock pins %s — rebuild the baseline with `lynx-start add %s -o`", name, shortHash(commit), item.Version, expectedVersion, name)
+	}
+	item.Dir = dir
+	return item, cleanup, nil
+}
+
 func (idx *Index) modulePath(name string) (string, error) {
 	for _, it := range idx.Items {
 		if it.Name == name {
@@ -347,6 +389,14 @@ func (a *Advisories) Hits(module, installedVersion string) []Advisory {
 }
 
 // untar 解 git archive 生成的 tar 流（仅文件与目录，拒绝异常路径）。
+// shortHash 截 12 位（错误信息紧凑）。
+func shortHash(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
+}
+
 func untar(dst string, r io.Reader) error {
 	tr := tar.NewReader(r)
 	for {

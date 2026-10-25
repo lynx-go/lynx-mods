@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"flag"
@@ -106,49 +105,71 @@ func cmdAdd(args []string) error {
 	overwriteAny := *overwrite || *overwriteLong
 
 	// 1) 渲染模块源码树：模块在本仓是真实 Go module，安装时排除工程文件
-	//    （go.mod/item.json/genproto/buf 配置），.go/.proto 中的规范 module
-	//    path 改写为应用 module path（shadcn alias rewrite 的对应物；安装
-	//    时模块名目录拍平：…/modules/<name>/X → <app>/X）。
-	//    本模块与全部声明依赖都要改写——模块可能 import 依赖模块的 domain
-	//    包（如 session → identity），依赖方必已安装（上面已校验）。
-	prefixes := [][]byte{[]byte(item.CanonicalModulePath() + "/")}
+	//    （go.mod/item.json/genproto/buf 配置）。布局重定位（ADR-0006）：
+	//    domain/<m>/** 与 internal/{app,api,infra}/<m>/** 装入应用专用区
+	//    modules/<m>/ 并拍平尾段；proto/** 集中应用根。.go/.proto 中的规范
+	//    module path 按五条结构化规则改写为应用路径（本模块与全部声明依赖
+	//    ——模块可能 import 依赖模块的 domain 包，依赖方必已安装）。
+	canonicals := map[string]string{name: item.CanonicalModulePath()}
 	for _, dep := range item.ModuleDependencies {
 		depItem, err := idx.Item(*registryDir, dep.Name)
 		if err != nil {
 			return err
 		}
-		prefixes = append(prefixes, []byte(depItem.CanonicalModulePath()+"/"))
+		canonicals[dep.Name] = depItem.CanonicalModulePath()
 	}
-	appPath := []byte(m.ModulePath)
+	rewrite := moduleRewriter(m.ModulePath, canonicals)
 	res, err := render.Tree(item.Dir, appDir, data, render.Options{
 		Overwrite: overwriteAny,
 		DryRun:    *dryRun,
 		Skip:      skipModuleFile,
+		Relocate:  func(rel string) (string, error) { return relocateModule(name, rel) },
 		Rewrite: func(rel string, content []byte) []byte {
-			if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {
-				return content
-			}
-			for _, p := range prefixes {
-				content = bytes.ReplaceAll(content, p, append(appPath, '/'))
-			}
-			return content
+			return rewriteGuardTest(name, rel, rewrite(rel, content))
 		},
 		Report: printf,
 	})
 	if err != nil {
 		return err
 	}
+	// fail-closed 兜底：改写规则漏配会静默产出坏 import——扫描产物中
+	// 残留的规范模块路径（带引号的 import/go_package 形态）。
+	if !*dryRun {
+		for _, rel := range res.Created {
+			content, rerr := os.ReadFile(filepath.Join(appDir, filepath.FromSlash(rel)))
+			if rerr != nil {
+				continue
+			}
+			if resi, bad := canonicalResidue(rel, content); bad {
+				return fmt.Errorf("%s: canonical module path %q survived the rewrite (layout rule gap) — report this bug", rel, resi)
+			}
+		}
+	}
 	if *dryRun {
 		fmt.Printf("\n(dry-run) would write %d files, skip %d\n", len(res.Created), len(res.Skipped))
 		return nil
 	}
 
-	// 2) modules.go 注入（幂等）。
+	// 2) 桥接包（modules/<m>/module.go）：应用代码经它取 Module/Assemble
+	//    （Go internal 可见性）。注入物，不参与 update 合并；无条件刷新。
+	bridgePath := filepath.Join(appDir, filepath.FromSlash(bridgeRelPath(name)))
+	if err := os.MkdirAll(filepath.Dir(bridgePath), 0o755); err != nil {
+		return err
+	}
+	bridge := bridgeModule(m.ModulePath, name)
+	if formatted, ferr := format.Source(bridge); ferr == nil {
+		bridge = formatted
+	}
+	if err := os.WriteFile(bridgePath, bridge, 0o644); err != nil {
+		return fmt.Errorf("write bridge module.go: %w", err)
+	}
+
+	// 3) modules.go 注入（幂等）。
 	if !already {
 		if err := injectModulesEntry(appDir, name, m.ModulePath); err != nil {
 			return err
 		}
-		// 3) config.yaml 追加模块配置段（幂等）。
+		// 4) config.yaml 追加模块配置段（幂等）。
 		if err := appendEnvExample(appDir, m, item); err != nil {
 			fmt.Printf("warn: env example skipped: %v\n", err)
 		}
@@ -157,12 +178,16 @@ func cmdAdd(args []string) error {
 		}
 	}
 
-	// 4) 基线快照 + 版本 pin：无论首装还是重装（-o），凡本次被 upstream
+	// 5) 基线快照 + 版本 pin：无论首装还是重装（-o），凡本次被 upstream
 	//    形态写入的文件都进基线——update 三方合并的 base 由此而来。
+	//    基线缓存按 ~/.lynx-start/baselines/<appModulePath>/<m>@<commit>
+	//    寻址（commit 先解析，见 ADR-0006：多版本并存、可重建、不进仓库）。
 	files := append([]string{}, res.Created...)
 	files = append(files, res.Skipped...)
 	sort.Strings(files)
-	if err := syncBaseline(appDir, item.Name, res); err != nil {
+	source, commit := lock.ResolveCommit(*registryDir, item.Name, version)
+	baseDir := baselineCacheDir(m.ModulePath, item.Name, commit)
+	if err := syncBaseline(appDir, baseDir, res); err != nil {
 		return fmt.Errorf("snapshot install baseline: %w", err)
 	}
 	// 供应链锁：版本溯源（tag/worktree + commit）与基线 sha256（update 合并
@@ -171,8 +196,7 @@ func cmdAdd(args []string) error {
 	if err != nil {
 		return err
 	}
-	source, commit := lock.ResolveCommit(*registryDir, item.Name, version)
-	if err := lk.Record(baselineDir(appDir, item.Name), item.Name, item.Version, source, commit); err != nil {
+	if err := lk.Record(baseDir, item.Name, item.Version, source, commit); err != nil {
 		return err
 	}
 	if err := lk.Save(appDir); err != nil {
@@ -214,10 +238,10 @@ func goGetHint(item *registry.Item) string {
 	return "\n  go get " + strings.Join(item.GoDependencies, " ")
 }
 
-// injectModulesEntry 在 internal/modules/modules.go 的锚点处注入 import 与
-// 装配登记（存在即跳过，幂等）。
+// injectModulesEntry 在 modules/modules.go 的锚点处注入 import 与装配登记
+// （存在即跳过，幂等；import 指向桥接包 <app>/modules/<name>）。
 func injectModulesEntry(appDir, name, modulePath string) error {
-	path := filepath.Join(appDir, "internal", "modules", "modules.go")
+	path := filepath.Join(appDir, "modules", "modules.go")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read modules.go (generated by lynx-start init): %w", err)
@@ -232,11 +256,11 @@ func injectModulesEntry(appDir, name, modulePath string) error {
 	}
 	src = strings.Replace(src, entryAnchor, entry+entryAnchor, 1)
 
-	imp := fmt.Sprintf("%s %q\n", name, modulePath+"/internal/api/"+name)
+	imp := fmt.Sprintf("%s %q\n", name, modulePath+"/modules/"+name)
 	if !strings.Contains(src, importAnchor) {
 		return fmt.Errorf("modules.go is missing import anchor %q", importAnchor)
 	}
-	if !strings.Contains(src, fmt.Sprintf("%q", modulePath+"/internal/api/"+name)) {
+	if !strings.Contains(src, fmt.Sprintf("%q", modulePath+"/modules/"+name)) {
 		src = strings.Replace(src, importAnchor, imp+importAnchor, 1)
 	}
 	formatted, ferr := format.Source([]byte(src))

@@ -14,8 +14,9 @@ import (
 )
 
 // cmdRemove: lynx-start remove <module> —— 卸载模块：回退 modules.go 注入
-// 与 config 段、删除安装文件（共享文件保护）、清基线。迁移表 goose_<m>_db
-// 一律保留（数据安全）；genproto/<m> 由 buf 管线生成，提示手动清理。
+// 与 config 段、删除安装文件（共享文件保护）、整树清理 modules/<m>（含
+// 桥接与 genproto）、清用户目录基线/备份缓存。迁移表 goose_<m>_db 一律
+// 保留（数据安全）。
 func cmdRemove(args []string) error {
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	registryDir := fs.String("registry", os.Getenv("LYNXSTART_REGISTRY"), "lynx-start repo directory")
@@ -102,6 +103,11 @@ func cmdRemove(args []string) error {
 				removed++
 			}
 		}
+		// 模块专用区整树清理：桥接包与 genproto 是注入物/生成物（不在
+		// Files 里），modules/<m>/ 下再无归属本模块的内容。
+		if err := os.RemoveAll(filepath.Join(appDir, "modules", name)); err != nil {
+			return err
+		}
 	} else {
 		for _, rel := range installed.Files {
 			switch {
@@ -126,11 +132,14 @@ func cmdRemove(args []string) error {
 		if err := removeConfigFragment(appDir, name); err != nil {
 			return err
 		}
-		// 基线/备份与清单条目。
-		if err := os.RemoveAll(filepath.Join(appDir, ".lynx-start", "baseline", name)); err != nil {
-			return err
+		// 用户目录缓存（基线按 <m>@<commit>，备份按 <m>）与清单条目。
+		var cacheCommit string
+		if lk, err := lock.Load(appDir); err == nil {
+			if entry, ok := lk.Modules[name]; ok {
+				cacheCommit = entry.Commit
+			}
 		}
-		if err := os.RemoveAll(filepath.Join(appDir, ".lynx-start", "backup", name)); err != nil {
+		if err := removeCacheDirs(m.ModulePath, name, cacheCommit); err != nil {
 			return err
 		}
 		var kept []manifest.Module
@@ -154,10 +163,9 @@ func cmdRemove(args []string) error {
 	fmt.Printf("\n✓ module %s removed (%d files deleted, %d shared kept, %d already gone)\n", name, removed, shared, missing)
 	fmt.Printf(`Not removed (deliberate):
   migrations table goose_%s_db    # data safety: drop manually if you really mean it
-  genproto/%s                     # buf output: delete the dir, then mise run generate
 Next:
   go mod tidy && go build ./...   # verify the app still compiles
-`, name, name)
+`, name)
 	return nil
 }
 
@@ -165,7 +173,7 @@ Next:
 // injectModulesEntry 的插入格式对称；锚点保留）。未找到（用户手删过）
 // 不算错误——登记缺失即目标状态。
 func revertModulesEntry(appDir, name, modulePath string) error {
-	path := filepath.Join(appDir, "internal", "modules", "modules.go")
+	path := filepath.Join(appDir, "modules", "modules.go")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read modules.go: %w", err)
@@ -173,7 +181,7 @@ func revertModulesEntry(appDir, name, modulePath string) error {
 	src := string(raw)
 	entry := fmt.Sprintf("{\n\t\t\tModule:   %s.Module(),\n\t\t\tAssemble: %s.Assemble,\n\t\t},\n\t\t", name, name)
 	src = strings.ReplaceAll(src, entry, "")
-	impRe := regexp.MustCompile(`(?m)^\t` + regexp.QuoteMeta(name) + ` "` + regexp.QuoteMeta(modulePath+"/internal/api/"+name) + `"\n`)
+	impRe := regexp.MustCompile(`(?m)^\t` + regexp.QuoteMeta(name) + ` "` + regexp.QuoteMeta(modulePath+"/modules/"+name) + `"\n`)
 	src = impRe.ReplaceAllString(src, "")
 	formatted, ferr := format.Source([]byte(src))
 	if ferr != nil {

@@ -50,20 +50,24 @@
 
 ## 1. 模块解剖
 
+模块**仓内**结构（registry 侧、贡献者维护）与**装进应用后**的形态
+（ADR-0006 安装映射，模块代码零改动）：
+
 ```
-<app>/
-├── domain/<m>/            # 对外契约面：聚合、不变量、仓储端口、哨兵错误、事件名常量
-│   ├── item.go            #   聚合 + NewItem/Rename（不变量在构造/方法里）
-│   ├── repo.go            #   Repository 接口（端口；签名不得出现驱动类型）
-│   └── guard_test.go      #   import 护栏：断言本包不 import infra/app/api
-├── internal/
-│   ├── app/<m>/           # 用例层：编排领域与端口（事务/事件/仓储），无 HTTP/gRPC 概念
-│   ├── api/<m>/           # API 层：proto 生成的 Service 实现（薄转发）+ Module()/Assemble()
-│   └── infra/<m>/         # 基础设施：bun 仓储实现 + migrations/（embed.FS）
-└── proto/<m>/v1/<m>.proto # API 契约：google.api.http 路由 + grpcapi policy 注解
+modules/<m>/（仓内）            <app>/（安装后，尾段拍平）
+├── domain/<m>/                 ├── modules/<m>/
+│   ├── item.go                 │   ├── module.go        # 桥接包（add 生成：转发 Module/Assemble）
+│   ├── repo.go                 │   ├── domain/          # 对外契约面：聚合/端口/哨兵/事件常量
+│   └── guard_test.go           │   ├── internal/app/    # 用例层：编排领域与端口
+├── internal/{app,api,infra}/<m>/ │   ├── internal/api/    # Service 实现（薄转发）+ Module()/Assemble()
+└── proto/<m>/v1/<m>.proto      │   ├── internal/infra/  # bun 仓储 + migrations/（embed.FS）
+                                │   └── genproto/<m>/v1/ # lynx-start generate 产出归位
+                                └── proto/<m>/v1/<m>.proto  # API 契约源（集中应用根）
 ```
 
-依赖方向恒定：`api → app → domain ← infra`。装配在 `internal/api/<m>/module.go`。
+依赖方向恒定：`api → app → domain ← infra`。装配在模块内
+`internal/api/<m>/module.go`；应用经桥接包 `modules/<m>`（Go internal
+可见性：模块内 internal 只有 modules/<m>/ 树内可 import）。
 
 ## 2. 动手：写一个 `todo` 模块（应用内私有）
 
@@ -196,16 +200,17 @@ Assemble 里 `configkit.LoadSection(deps.Config, "todo", cfg.ApplyDefaults, &cfg
 ### 第 6 步：生成代码
 
 ```bash
-mise run generate    # buf dep update + lint + generate → genproto/todo/v1/
+mise run generate    # lynx-start generate：buf 管线 + genproto 归位 modules/<m>/genproto/
 go mod tidy
 ```
 
 ### 第 7 步：登记
 
-`internal/modules/modules.go` 的 `Installed` 列表追加（锚点内）：
+`modules/modules.go` 的 `Installed` 列表追加（锚点内；import 指向模块
+桥接包，`lynx-start add` 自动注入——手写私有模块时照抄）：
 
 ```go
-import todo "<app-module-path>/internal/api/todo"
+import todo "<app-module-path>/modules/todo"
 // ...
 {Module: todo.Module(), Assemble: todo.Assemble},
 ```
@@ -281,13 +286,16 @@ import todo "<app-module-path>/internal/api/todo"
 
 - `lynx-start add todo@0.1.0` 从 tag 提取该版本源码（可复现安装）；
   不带 `@version` 取 registry 工作区最新形态；
-- `add` 在应用 `.lynx-start/baseline/<name>/` 写**安装基线**（安装后最终
-  形态：已改写导入路径、已 gofmt）。建议把 `.lynx-start/` 随应用提交——
-  它是跨机器可用的更新依据；
+- `add` 在用户目录 `~/.lynx-start/baselines/<appModulePath>/<name>@<commit>/`
+  写**安装基线**（安装后最终形态：已改写导入路径、已 gofmt）。基线是可
+  重建缓存（不进应用仓库）：随应用提交的只有 `.lynx-start/lock.json`
+  （供应链锁）与 `lynx-start.json`（manifest）——缓存缺失时 update/doctor
+  按 lock 记录的 commit 自动从 registry 重建，跨机器不再依赖提交基线；
 - `lynx-start update todo` 三方合并到 registry 最新：**本地 / 基线 /
   upstream**。本地与 upstream 改动不重叠则自动合并；同区改动打 git
   冲突标记（`<<<<<<< yours / baseline / theirs`），覆盖前的本地副本留在
-  `.lynx-start/backup/`；upstream 删除的文件只提示不自动删。
+  `~/.lynx-start/backups/<appModulePath>/<name>/`；upstream 删除的文件只
+  提示不自动删。
   合并写盘不可回滚——**update 前先 commit 应用**；
 - 基线不变量：基线 ≡ upstream 最近一次同步形态。冲突文件解决后基线仍为
   upstream 形态，你的解决结果作为本地改动被下一次 update 自然保留。
@@ -314,11 +322,11 @@ import（domain 不许 import infra/app/api）。
 
 | 想改什么 | 推荐姿势 | update 冲突风险 |
 |---|---|---|
-| 仓储实现细节(某条 SQL/索引提示) | 直接改 `internal/infra/<m>/repo.go` | 低——upstream 少动这里,动了你也有明确语义优势 |
+| 仓储实现细节(某条 SQL/索引提示) | 直接改 `modules/<m>/internal/infra/repo.go` | 低——upstream 少动这里,动了你也有明确语义优势 |
 | 换整套存储实现 | 新建 `repo2.go` 实现同一 domain 端口,旧文件留着不动;只在装配层换构造 | 低——新增文件 update 天然保留(本地独有文件不参与合并) |
 | 换哈希/签名/密码学参数 | **不要改模块**——这类实现住在 kernel,`go get kernel@vX` 升级即可 | 无 |
-| 用例流程/业务规则 | 直接改 `internal/app/<m>` | 中——upstream 演进主区,但三方合并对「你改你的、上游修上游」友好 |
-| 装配接线(构造参数/依赖替换) | 改 `internal/api/<m>/module.go` 的 Assemble | **高——这是 upstream 热区**,改动保持最小(换构造一行),别顺手重构 |
+| 用例流程/业务规则 | 直接改 `modules/<m>/internal/app` | 中——upstream 演进主区,但三方合并对「你改你的、上游修上游」友好 |
+| 装配接线(构造参数/依赖替换) | 改 `modules/<m>/internal/api/module.go` 的 Assemble | **高——这是 upstream 热区**,改动保持最小(换构造一行),别顺手重构 |
 
 要点:
 

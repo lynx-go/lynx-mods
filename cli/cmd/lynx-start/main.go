@@ -4,6 +4,7 @@
 //	lynx-start add <module>[@<ver>]     安装模块源码到当前应用（版本走 git tag）
 //	lynx-start update <module>[@<ver>]  三方合并更新（本地 / 基线 / upstream）
 //	lynx-start remove <module>          卸载（DAG 反向校验 + 共享文件保护）
+//	lynx-start generate                 buf 生成管线 + genproto 归位 modules/<m>/
 //	lynx-start doctor                   应用与安装清单一致性体检
 //	lynx-start list                     列出 registry 中的模块
 //
@@ -34,6 +35,8 @@ func main() {
 		err = cmdRemove(os.Args[2:])
 	case "doctor":
 		err = cmdDoctor(os.Args[2:])
+	case "generate":
+		err = cmdGenerate(os.Args[2:])
 	case "list":
 		err = cmdList(os.Args[2:])
 	case "registry":
@@ -59,6 +62,7 @@ func usage() {
   lynx-start add <module>[@<version>] [--registry <dir>] [-o|--overwrite] [--dry-run]
   lynx-start update <module>[@<version>] [--registry <dir>] [--force]
   lynx-start remove <module> [--registry <dir>] [--dry-run]
+  lynx-start generate [--dir <app>]         # buf pipeline + genproto relocation into modules/<m>/
   lynx-start doctor [--registry <dir>] [--format text|github]
   lynx-start audit [--registry <dir>] [--format text|github]   # security advisory gate (non-zero on hits)
   lynx-start list [--registry <dir>]

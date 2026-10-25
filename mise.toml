@@ -92,18 +92,15 @@ WORK3="$(mktemp -d)"
   && "$WORK/lyx" init updapp --module example.com/updapp --registry "$ROOT" >/dev/null \
   && cd updapp \
   && "$WORK/lyx" add identity@0.1.0 --registry "$ROOT" >/dev/null \
-  && grep -q 'const dummyHash' internal/app/identity/identity.go \
-  && printf '\n// localCustomMark marks an app-side edit kept by the update merge.\nconst localCustomMark = "e2e-update"\n' >> internal/app/identity/identity.go \
+  && grep -q 'const dummyHash' modules/identity/internal/app/identity.go \
+  && printf '\n// localCustomMark marks an app-side edit kept by the update merge.\nconst localCustomMark = "e2e-update"\n' >> modules/identity/internal/app/identity.go \
   && "$WORK/lyx" update identity --registry "$ROOT" >/dev/null \
-  && grep -q 'localCustomMark' internal/app/identity/identity.go \
-  && grep -q 'password.DummyHash()' internal/app/identity/identity.go \
-  && [ "$(grep -c 'const dummyHash' internal/app/identity/identity.go)" = "0" ]) \
+  && grep -q 'localCustomMark' modules/identity/internal/app/identity.go \
+  && grep -q 'password.DummyHash()' modules/identity/internal/app/identity.go \
+  && [ "$(grep -c 'const dummyHash' modules/identity/internal/app/identity.go)" = "0" ]) \
   || { echo "update merge check failed"; exit 1; }
-mise trust "$WORK3/updapp/mise.toml" >/dev/null 2>&1 || true
 (cd "$WORK3/updapp" \
-  && buf dep update >/dev/null \
-  && buf lint >/dev/null \
-  && buf generate \
+  && "$WORK/lyx" generate \
   && go get github.com/lynx-go/lynx-start/kernel@v0.4.0 >/dev/null \
   && go mod tidy >/dev/null \
   && go build ./... && go vet ./...) \
@@ -112,9 +109,7 @@ rm -rf "$WORK3"
 fi
 # init 已生成 go.mod；-replace 钉住本仓 kernel（tag 未推送时也能跑）
 go mod edit -replace github.com/lynx-go/lynx-start/kernel="$ROOT/kernel"
-buf dep update >/dev/null
-buf lint
-buf generate
+"$WORK/lyx" generate
 go mod tidy >/dev/null
 go build ./... && go vet ./... && go test ./...
 # remove e2e：负路径（identity 被 session/access 依赖必须拒绝）、正路径

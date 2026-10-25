@@ -11,7 +11,7 @@ import (
 
 func TestRevertModulesEntryRoundtrip(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "internal", "modules", "modules.go")
+	p := filepath.Join(dir, "modules", "modules.go")
 	const tmpl = `package modules
 
 import (
@@ -36,7 +36,7 @@ var Installed = []kernel.InstalledModule{
 	src := tmpl
 	entry := "{\n\t\t\tModule:   audit.Module(),\n\t\t\tAssemble: audit.Assemble,\n\t\t},\n\t\t"
 	src = strings.Replace(src, entryAnchor, entry+entryAnchor, 1)
-	imp := "audit \"example.com/app/internal/api/audit\"\n"
+	imp := "audit \"example.com/app/modules/audit\"\n"
 	src = strings.Replace(src, importAnchor, imp+importAnchor, 1)
 	if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
 		t.Fatal(err)

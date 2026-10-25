@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
+	"go/format"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -72,14 +72,18 @@ func cmdUpdate(args []string) error {
 		fmt.Printf("✓ %s already at %s (use --force to re-sync the baseline from the registry worktree)\n", name, item.Version)
 		return nil
 	}
-	// 供应链锁复核：基线是三方合并的锚，被篡改会静默污染合并——哈希不符
-	// 即拒绝（旧应用无锁条目时跳过，与基线前时代兼容）。
+	// 供应链锁复核 + 基线缓存就位（ADR-0006：基线住 ~/.lynx-start，缺失时
+	// 按 lock 记录的 commit 从 registry 确定性重建，换机器不依赖提交基线）。
 	lk, err := lock.Load(appDir)
 	if err != nil {
 		return err
 	}
+	baseDir, err := ensureBaseline(idx, *registryDir, m, lk, name)
+	if err != nil {
+		return err
+	}
 	if entry, ok := lk.Modules[name]; ok {
-		mismatch, err := entry.Mismatch(baselineDir(appDir, name))
+		mismatch, err := entry.Mismatch(baseDir)
 		if err != nil {
 			return err
 		}
@@ -87,12 +91,12 @@ func cmdUpdate(args []string) error {
 			return fmt.Errorf("baseline for %s drifted from .lynx-start/lock.json (tampered or hand-edited): %s — rebuild with `lynx-start add %s -o` (overwrites local files; commit first)", name, strings.Join(mismatch, ", "), name)
 		}
 	}
-	base, hasBase, err := loadBaselineTree(appDir, name)
+	base, hasBase, err := loadBaselineTree(baseDir)
 	if err != nil {
 		return err
 	}
 	if !hasBase || len(base) == 0 {
-		return fmt.Errorf("no update baseline for %s (installed before baselines existed): re-install with `lynx-start add %s -o` to rebuild it (your files are overwritten by upstream; commit local changes first), then update is available again", name, name)
+		return fmt.Errorf("no update baseline for %s: re-install with `lynx-start add %s -o` to rebuild it (your files are overwritten by upstream; commit local changes first), then update is available again", name, name)
 	}
 
 	// upstream 渲染到临时目录：与 add 同一管线（改写导入路径、gofmt、
@@ -149,8 +153,8 @@ func cmdUpdate(args []string) error {
 		return nil
 	}
 
-	// 冲突文件覆盖本地前留备份。
-	backup := filepath.Join(appDir, ".lynx-start", "backup", name)
+	// 冲突文件覆盖本地前留备份（用户目录缓存，与应用仓库分离）。
+	backup := backupCacheDir(m.ModulePath, name)
 	for _, rel := range res.Conflicts {
 		src := filepath.Join(appDir, filepath.FromSlash(rel))
 		if content, err := os.ReadFile(src); err == nil {
@@ -175,6 +179,19 @@ func cmdUpdate(args []string) error {
 		}
 	}
 
+	// 桥接包无条件刷新（注入物，不参与合并）。
+	bridge := bridgeModule(m.ModulePath, name)
+	if formatted, ferr := format.Source(bridge); ferr == nil {
+		bridge = formatted
+	}
+	bridgePath := filepath.Join(appDir, filepath.FromSlash(bridgeRelPath(name)))
+	if err := os.MkdirAll(filepath.Dir(bridgePath), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(bridgePath, bridge, 0o644); err != nil {
+		return fmt.Errorf("write bridge module.go: %w", err)
+	}
+
 	// 幂等注入重放：新版模块可能带来新的装配登记/配置段；锚点丢失不阻断
 	// 源码更新（此时 add 时也修不好的锚点，交给用户比对 scaffold 模板）。
 	if err := injectModulesEntry(appDir, name, m.ModulePath); err != nil {
@@ -192,11 +209,12 @@ func cmdUpdate(args []string) error {
 		files = append(files, rel)
 	}
 	sort.Strings(files)
-	if err := replaceBaselineTree(appDir, name, other); err != nil {
+	source, commit := lock.ResolveCommit(*registryDir, name, version)
+	newBaseDir := baselineCacheDir(m.ModulePath, name, commit)
+	if err := replaceBaselineTree(newBaseDir, other); err != nil {
 		return err
 	}
-	source, commit := lock.ResolveCommit(*registryDir, name, version)
-	if err := lk.Record(baselineDir(appDir, name), name, item.Version, source, commit); err != nil {
+	if err := lk.Record(newBaseDir, name, item.Version, source, commit); err != nil {
 		return err
 	}
 	if err := lk.Save(appDir); err != nil {
@@ -213,7 +231,7 @@ func cmdUpdate(args []string) error {
 	}
 	fmt.Println(")")
 	for _, rel := range res.Conflicts {
-		fmt.Printf("  conflict %s  (markers: yours/baseline/theirs; pre-update copy in .lynx-start/backup/%s/%s)\n", rel, name, rel)
+		fmt.Printf("  conflict %s  (markers: yours/baseline/theirs; pre-update copy in %s/%s)\n", rel, backup, rel)
 	}
 	for _, rel := range res.Removed {
 		fmt.Printf("  removed upstream, still present: %s (delete manually if unwanted)\n", rel)
@@ -229,32 +247,44 @@ func cmdUpdate(args []string) error {
 	return nil
 }
 
-// renderUpstream 用 add 同款管线把模块源码树渲染到 dst（改写导入路径为
-// 应用 module path：本模块 + 声明依赖的前缀都拍平到应用路径下）。
+// renderUpstream 用 add 同款管线把模块源码树渲染到 dst（布局重定位到
+// modules/<m>/ + 五条结构化导入改写——与应用文件/基线同处一个路径空间，
+// 合并不会产生虚假冲突）。依赖前缀集取 manifest 已装模块（与安装时
+// 确定性等价：改写只对源码中实际出现的前缀生效）。
 func renderUpstream(idx *registry.Index, registryDir string, item *registry.Item, m *manifest.Manifest, dst string) error {
-	prefixes := [][]byte{[]byte(item.CanonicalModulePath() + "/")}
-	for _, dep := range item.ModuleDependencies {
-		depItem, err := idx.Item(registryDir, dep.Name)
+	canonicals := map[string]string{item.Name: item.CanonicalModulePath()}
+	for _, mod := range m.Modules {
+		if mod.Name == item.Name {
+			continue
+		}
+		depItem, err := idx.Item(registryDir, mod.Name)
 		if err != nil {
 			return err
 		}
-		prefixes = append(prefixes, []byte(depItem.CanonicalModulePath()+"/"))
+		canonicals[mod.Name] = depItem.CanonicalModulePath()
 	}
-	appPath := []byte(m.ModulePath)
-	_, err := render.Tree(item.Dir, dst, render.NewData(m.Name, m.ModulePath), render.Options{
+	rewrite := moduleRewriter(m.ModulePath, canonicals)
+	res, err := render.Tree(item.Dir, dst, render.NewData(m.Name, m.ModulePath), render.Options{
 		Overwrite: true,
 		Skip:      skipModuleFile,
+		Relocate:  func(rel string) (string, error) { return relocateModule(item.Name, rel) },
 		Rewrite: func(rel string, content []byte) []byte {
-			if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {
-				return content
-			}
-			for _, p := range prefixes {
-				content = bytes.ReplaceAll(content, p, append(appPath, '/'))
-			}
-			return content
+			return rewriteGuardTest(item.Name, rel, rewrite(rel, content))
 		},
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	for _, rel := range res.Created {
+		content, rerr := os.ReadFile(filepath.Join(dst, filepath.FromSlash(rel)))
+		if rerr != nil {
+			return rerr
+		}
+		if resi, bad := canonicalResidue(rel, content); bad {
+			return fmt.Errorf("%s: canonical module path %q survived the rewrite (layout rule gap) — report this bug", rel, resi)
+		}
+	}
+	return nil
 }
 
 // printPlan 逐行列出合并计划文件（dry-run 报告用）。

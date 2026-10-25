@@ -6,6 +6,27 @@
 
 ## Unreleased
 
+- **breaking：安装布局镜像挂载 + 基线缓存分离（ADR-0006，v0.x 阶段直接 breaking）**：
+  - 模块装入应用 `modules/<m>/` 专用区（`modules/` = registry 镜像区，
+    `internal/` = 应用自有代码），`{domain,internal/{app,api,infra}}` 下尾段
+    模块名目录拍平；模块仓内源码结构零改动。Go internal 可见性下应用经
+    CLI 生成的桥接包 `modules/<m>/module.go` 取得 Module/Assemble；
+    modules.go 登记点移至 `modules/modules.go`。proto 契约源仍集中应用根。
+  - 新命令 `lynx-start generate`：buf 管线（dep update/lint/generate）+
+    genproto 按模块归位 `modules/<m>/genproto/<m>/v1/`——布局规则单一
+    事实源收敛 CLI（不靠安装拷贝也不靠 mise shell 后处理）；scaffold 的
+    mise generate 任务变为一行转发。
+  - 基线缓存迁至 `~/.lynx-start/baselines/<appModulePath>/<m>@<commit>/`
+    （多版本并存、可重建、不进仓库）：应用只提交 lock.json+manifest；
+    update/doctor 在缓存缺失时按 lock 记录的 commit 从 registry 自动重建
+    （ensureBaseline，跨设备 rename 回退复制）；update 冲突备份移至
+    `~/.lynx-start/backups/<appModulePath>/<m>/`；remove 整树清理
+    `modules/<m>/`（含桥接与 genproto）与用户缓存。
+  - 导入改写五条结构化规则（genproto/domain/三层 internal，逐依赖映射）+
+    改写后残留扫描 fail-closed；domain guard_test 的相对路径深度随拍平
+    修正（安装期确定性改写）。doctor 增旧布局检测（可行动重装指引）。
+  - e2e 全量组合在新布局下全绿（含 update 三方合并/remove/doctor）；
+    旧布局应用（如 lynx-start-demo）需按指引重装迁移。
 - **registry 第 6 个模块 `organization` v0.1.0(组织与成员事实,首个账号域之外的业务模块;命名纪律:除局部短变量外一律全称,模块名/目录/文件名同为全称)**:
   - 定位:组织 = 结构与成员事实,不自带 RBAC——成员带 `IsOwner` 结构标记
     (创建者即 owner,owner-only 管理;最后一个 owner 不可离开,owner 不可被
@@ -77,6 +98,15 @@
   形态,报错附可执行动作(bootstrap.HintDB,migrate 与 server 共用);
 - **发布自动化(I-06)**:本 CHANGELOG + `.github/workflows/release.yml`
   (tag push 自动建 Release,notes 从本文摘取)。
+
+## cli v0.2.0 (2026-10-25)
+
+安装布局重大变更（ADR-0006，**breaking**——旧布局应用按 doctor 指引重装迁移）：
+
+- 模块装入应用 `modules/<m>/` 专用区（`modules/` = registry 镜像区，`internal/` = 应用自有代码），`{domain,internal/{app,api,infra}}` 尾段模块名目录拍平，模块仓源码结构零改动；应用经 CLI 生成的桥接包 `modules/<m>/module.go` 取得 Module/Assemble；modules.go 登记点移至 `modules/modules.go`。
+- 新命令 `lynx-start generate`：buf 管线（dep update / lint / generate）+ genproto 按模块归位 `modules/<m>/genproto/<m>/v1/`——布局规则单一事实源收敛 CLI；scaffold 的 mise generate 任务变为一行转发。
+- 基线缓存迁 `~/.lynx-start/baselines/<appModulePath>/<m>@<commit>/`（多版本并存、可重建、不进应用仓库；应用只提交 lock.json + lynx-start.json）；update/doctor 在缓存缺失时按 lock 记录的 commit 从 registry 自动重建；update 冲突备份移 `~/.lynx-start/backups/…`；remove 整树清理 `modules/<m>/` 与用户缓存。
+- 导入改写五条结构化规则 + 残留扫描 fail-closed；guard_test 相对路径随拍平在安装期修正；doctor 增旧布局检测。
 
 ## cli v0.1.1 (2026-10-25)
 

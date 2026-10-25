@@ -59,21 +59,26 @@ example) and `modules/identity` (authenticator + config section).
 
 ## 1. Module anatomy
 
+The module structure **inside the registry repo** (contributor side) and its
+**installed form** in an app (ADR-0006 install mapping — module code is
+never modified):
+
 ```
-<app>/
-├── domain/<m>/            # outward contract surface: aggregates, invariants, repository ports, sentinel errors, event-name constants
-│   ├── item.go            #   aggregate + NewItem/Rename (invariants live in constructors/methods)
-│   ├── repo.go            #   Repository interface (port; signatures must not mention driver types)
-│   └── guard_test.go      #   import guardrail: asserts this package does not import infra/app/api
-├── internal/
-│   ├── app/<m>/           # use-case layer: orchestrates domain and ports (transactions/events/repos), no HTTP/gRPC concepts
-│   ├── api/<m>/           # API layer: proto-generated Service implementation (thin forwarding) + Module()/Assemble()
-│   └── infra/<m>/         # infrastructure: bun repository implementation + migrations/ (embed.FS)
-└── proto/<m>/v1/<m>.proto # API contract: google.api.http routes + grpcapi policy annotations
+modules/<m>/ (registry)         <app>/ (installed, tail segment flattened)
+├── domain/<m>/                 ├── modules/<m>/
+│   ├── item.go                 │   ├── module.go        # bridge (add-generated: forwards Module/Assemble)
+│   ├── repo.go                 │   ├── domain/          # outward contract surface: aggregates/ports/sentinels/events
+│   └── guard_test.go           │   ├── internal/app/    # use-case layer: orchestrates domain and ports
+├── internal/{app,api,infra}/<m>/ │   ├── internal/api/    # Service impl (thin forwarding) + Module()/Assemble()
+└── proto/<m>/v1/<m>.proto      │   ├── internal/infra/  # bun repository + migrations/ (embed.FS)
+                                │   └── genproto/<m>/v1/ # relocated by lynx-start generate
+                                └── proto/<m>/v1/<m>.proto  # API contract source (app-root central)
 ```
 
 The dependency direction is constant: `api → app → domain ← infra`. Assembly
-lives in `internal/api/<m>/module.go`.
+lives in the module's `internal/api/<m>/module.go`; the app reaches it through
+the bridge package `modules/<m>` (Go internal visibility: the module's
+internal/** is importable only from inside modules/<m>/).
 
 ## 2. Hands-on: write a `todo` module (private to your app)
 
@@ -215,16 +220,18 @@ automatically via the item.json `configFragment`).
 ### Step 6: generate code
 
 ```bash
-mise run generate    # buf dep update + lint + generate → genproto/todo/v1/
+mise run generate    # lynx-start generate: buf pipeline + genproto relocation into modules/<m>/genproto/
 go mod tidy
 ```
 
 ### Step 7: register
 
-Append (inside the anchors) to the `Installed` list in `internal/modules/modules.go`:
+Append (inside the anchors) to the `Installed` list in `modules/modules.go`
+(`lynx-start add` injects this automatically — copy the shape for hand-written
+private modules; the import points at the module bridge package):
 
 ```go
-import todo "<app-module-path>/internal/api/todo"
+import todo "<app-module-path>/modules/todo"
 // ...
 {Module: todo.Module(), Assemble: todo.Assemble},
 ```
@@ -306,13 +313,17 @@ Registering is one command (item.json skeleton / registry.json / go.work kept co
 - `lynx-start add todo@0.1.0` extracts that version's source from the tag
   (reproducible installs); without `@version` the registry worktree is taken
   (latest);
-- `add` writes an **install baseline** to the app's `.lynx-start/baseline/<name>/`
-  (the exact post-install form: rewritten imports, gofmt'd). Commit `.lynx-start/`
-  with the app — it is the cross-machine basis for updates;
+- `add` writes an **install baseline** to the user cache
+  `~/.lynx-start/baselines/<appModulePath>/<name>@<commit>/` (the exact
+  post-install form: rewritten imports, gofmt'd). The baseline is a rebuildable
+  cache and never enters the app repo: commit only `.lynx-start/lock.json`
+  (supply-chain lock) and `lynx-start.json` (manifest) — when the cache is
+  missing, update/doctor rebuild it from the registry at the commit recorded
+  in the lock, so cross-machine updates no longer depend on committed baselines;
 - `lynx-start update todo` three-way-merges to the registry latest: **local /
   baseline / upstream**. Non-overlapping changes merge automatically; same-region
   changes get git conflict markers (`<<<<<<< yours / baseline / theirs`), the
-  pre-overwrite local copy is kept in `.lynx-start/backup/`; files deleted
+  pre-overwrite local copy is kept in `~/.lynx-start/backups/<appModulePath>/<name>/`; files deleted
   upstream are only reported, never auto-deleted. Merging writes are not
   rollback-safe — **commit the app before update**;
 - Baseline invariant: baseline ≡ the last-synced upstream form. After resolving
@@ -342,11 +353,11 @@ levels, from low to high:
 
 | What you want | Recommended recipe | Update-conflict risk |
 |---|---|---|
-| Repository detail (one SQL / index hint) | Edit `internal/infra/<m>/repo.go` in place | Low — upstream rarely touches it, and your edit has clear intent |
+| Repository detail (one SQL / index hint) | Edit `modules/<m>/internal/infra/repo.go` in place | Low — upstream rarely touches it, and your edit has clear intent |
 | Swap the whole storage implementation | Add `repo2.go` implementing the same domain port; leave the old file alone; swap the constructor in the assembly layer only | Low — new files never participate in the merge (local-only files are preserved untouched) |
 | Hashing / signing / crypto parameters | **Do not edit the module** — such implementations live in kernel; bump with `go get kernel@vX` | None |
-| Use-case flow / business rules | Edit `internal/app/<m>` directly | Medium — the upstream's main evolution zone, but three-way merge handles "yours vs theirs" well |
-| Assembly wiring (constructor args / dependency swap) | Edit Assemble in `internal/api/<m>/module.go` | **High — this is the upstream hot zone**. Keep edits minimal (the one constructor line); do not refactor while you are there |
+| Use-case flow / business rules | Edit `modules/<m>/internal/app` directly | Medium — the upstream's main evolution zone, but three-way merge handles "yours vs theirs" well |
+| Assembly wiring (constructor args / dependency swap) | Edit Assemble in `modules/<m>/internal/api/module.go` | **High — this is the upstream hot zone**. Keep edits minimal (the one constructor line); do not refactor while you are there |
 
 Key points:
 

@@ -63,12 +63,18 @@ func cmdDoctor(args []string) error {
 
 	fmt.Printf("lynx-start doctor: %s (%d modules)\n", appDir, len(m.Modules))
 
+	// 0) 旧布局检测（ADR-0006 之前的合并布局）：升级 CLI 后的旧应用，
+	//    给出重装指引而不是一连串误导性的文件缺失。
+	for _, mod := range legacyLayoutInstalled(appDir, moduleNames(m)) {
+		check(false, "%s is installed in the legacy layout (domain/%s or internal/api/%s present): re-install with `lynx-start add %s -o` to move it under modules/%s (commit local changes first; see docs/adr/0006)", mod, mod, mod, mod, mod)
+	}
+
 	// 1) modules.go 双向对账：登记的模块都在清单，清单的模块都已登记。
 	modulesSrc := ""
-	if raw, err := os.ReadFile(filepath.Join(appDir, "internal", "modules", "modules.go")); err == nil {
+	if raw, err := os.ReadFile(filepath.Join(appDir, "modules", "modules.go")); err == nil {
 		modulesSrc = string(raw)
 	} else {
-		check(false, "read internal/modules/modules.go: %v", err)
+		check(false, "read modules/modules.go: %v", err)
 	}
 	if modulesSrc != "" {
 		for _, mod := range m.Modules {
@@ -130,23 +136,27 @@ func cmdDoctor(args []string) error {
 		check(gone == 0, "%s files intact (%d of %d missing)", mod.Name, gone, len(mod.Files))
 		if len(mod.Files) == 0 {
 			check(false, "%s has no update baseline (add %s -o to rebuild)", mod.Name, mod.Name)
-		} else {
-			baseDir := baselineDir(appDir, mod.Name)
-			baseGone := 0
-			for _, rel := range mod.Files {
-				if _, err := os.Stat(filepath.Join(baseDir, filepath.FromSlash(rel))); err != nil {
-					baseGone++
-				}
-			}
-			check(baseGone == 0, "%s baseline intact (%d of %d missing)", mod.Name, baseGone, len(mod.Files))
 		}
-		// 供应链锁（I-14）：条目在、基线哈希符、钉版 tag 未移动。
+		// 供应链锁（I-14）+ 基线缓存（ADR-0006：~/.lynx-start 下按
+		// <m>@<commit> 寻址，缺失自动重建——重建失败才 ✗）。
 		lk, lkErr := lock.Load(appDir)
 		if lkErr != nil {
 			check(false, "%s lock loads: %v", mod.Name, lkErr)
 		} else if entry, ok := lk.Modules[mod.Name]; ok {
-			mismatch, err := entry.Mismatch(baselineDir(appDir, mod.Name))
-			check(err == nil && len(mismatch) == 0, "%s baseline matches lock (%s)", mod.Name, strings.Join(mismatch, ", "))
+			baseDir, err := ensureBaseline(idx, *registryDir, m, lk, mod.Name)
+			if err != nil {
+				check(false, "%s baseline cache available: %v", mod.Name, err)
+			} else {
+				baseGone := 0
+				for _, rel := range mod.Files {
+					if _, err := os.Stat(filepath.Join(baseDir, filepath.FromSlash(rel))); err != nil {
+						baseGone++
+					}
+				}
+				check(baseGone == 0, "%s baseline intact (%d of %d missing)", mod.Name, baseGone, len(mod.Files))
+				mismatch, err := entry.Mismatch(baseDir)
+				check(err == nil && len(mismatch) == 0, "%s baseline matches lock (%s)", mod.Name, strings.Join(mismatch, ", "))
+			}
 			// tag 漂移检查只对「从 tag 安装」的条目——worktree 安装记的是当时
 			// HEAD,与同名旧 tag 比对没有意义。
 			if strings.HasPrefix(entry.Source, "tag ") && entry.Commit != "" {
@@ -206,4 +216,13 @@ func shortHash(h string) string {
 		return h[:12]
 	}
 	return h
+}
+
+// moduleNames 提取 manifest 的模块名列表。
+func moduleNames(m *manifest.Manifest) []string {
+	names := make([]string, 0, len(m.Modules))
+	for _, mod := range m.Modules {
+		names = append(names, mod.Name)
+	}
+	return names
 }

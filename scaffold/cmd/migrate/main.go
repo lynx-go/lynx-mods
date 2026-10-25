@@ -20,7 +20,7 @@ import (
 	"github.com/lynx-go/lynx-start/kernel/goosekit"
 	"github.com/uptrace/bun/driver/pgdriver"
 	"{{.ModulePath}}/internal/bootstrap"
-	"{{.ModulePath}}/internal/modules"
+	"{{.ModulePath}}/modules"
 )
 
 // defaultDSN 与 configs/config.yaml 的 data.database.source 缺省同款

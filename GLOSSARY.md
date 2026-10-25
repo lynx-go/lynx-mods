@@ -43,7 +43,7 @@ _EN: **Module protocol** — the kernel-defined `Module`/`Assembly` shapes cover
 _Avoid_: 插件接口、生命周期（指 lynx Service 生命周期时）
 
 **Installed（已装清单）**:
-应用侧 `internal/modules/modules.go` 中的 `Installed` 列表，是模块装配的唯一登记点。
+应用侧 `modules/modules.go` 中的 `Installed` 列表，是模块装配的唯一登记点。
 _EN: **Installed list** — the single registration point for assembly in the app's modules.go._
 _Avoid_: 注册表、路由表
 
