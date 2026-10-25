@@ -70,6 +70,12 @@
   安装基线)/ update(三方合并)/ remove(DAG 反向校验)/ doctor / list;
   registry 支持本仓库目录与 git URL(clone 缓存 + 增量刷新)。
 
+## kernel v0.4.0 (2026-10-25)
+
+- testutil 共享 fake(CapturePublisher/InlineRunner)+ AssertDepsAtAPILayer
+  依赖护栏(ADR-0005 路线 A:装配保持手写,wire 借思想不借工具);
+  详见 [kernel/CHANGELOG.md](kernel/CHANGELOG.md)。
+
 ## kernel v0.3.0 (2026-10-25)
 
 - `DefaultChain(logger, set, agg, authnOpts)`(additive):模块贡献 Stage 时

@@ -3,6 +3,16 @@
 Kernel 对外做 semver 承诺:破坏性变更升主版本(0.x 阶段升 minor),向后兼容追加升 patch。
 条目按发布时间倒序;根 CHANGELOG.md 含全仓(含模块)视角。
 
+## v0.4.0 (2026-10-25)
+
+- **testutil 共享 fake(ADR-0005 路线 A)**:`CapturePublisher`(与
+  BusPublisher 同语义——信封不合法即拒绝;Fail 标志测错误路径)与
+  `InlineRunner`(uow.Runner 直通)。模块测试不再各自手抄(fake 漏
+  Validate 曾让非法事件名在测试期漏网)。
+- **testutil.AssertDepsAtAPILayer 依赖护栏**:断言 kernel 根包
+  (Deps/Assembly 所在)未被指定目录 import——Deps 只允许 api 装配层,
+  domain/app/infra 一律走子包端口;「Deps 子集化」用静态护栏替代 DI 框架。
+
 ## v0.3.0 (2026-10-25)
 
 - **`DefaultChain(logger, set, agg, authnOpts)`(additive)**:把「模块贡献
