@@ -43,10 +43,11 @@ func cmdRemove(args []string) error {
 	if *registryDir == "" {
 		*registryDir = m.Registry
 	}
-	idx, err := registryLoad(*registryDir)
+	idx, regDir, err := registryLoad(*registryDir)
 	if err != nil {
 		return err
 	}
+	*registryDir = regDir
 
 	// 依赖方校验（DAG 反向）：任何其他已装模块声明依赖本模块即拒绝。
 	var dependents []string

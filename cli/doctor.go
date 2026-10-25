@@ -33,10 +33,11 @@ func cmdDoctor(args []string) error {
 	if *registryDir == "" {
 		*registryDir = m.Registry
 	}
-	idx, err := registryLoad(*registryDir)
+	idx, regDir, err := registryLoad(*registryDir)
 	if err != nil {
 		return err
 	}
+	*registryDir = regDir
 	problems := 0
 	check := func(ok bool, format string, args ...any) {
 		if ok {

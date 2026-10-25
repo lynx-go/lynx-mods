@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lynx-go/lynx-start/cli/internal/manifest"
+	"github.com/lynx-go/lynx-start/cli/internal/registry"
 	"github.com/lynx-go/lynx-start/cli/internal/render"
 )
 
@@ -46,7 +47,13 @@ func cmdInit(args []string) error {
 	if modulePath == "" {
 		modulePath = "example.com/" + appName
 	}
-	scaffoldDir := filepath.Join(*registryDir, "scaffold")
+	resolved, err := registry.Resolve(*registryDir)
+	if err != nil {
+		return err
+	}
+	// manifest 记原始形态（URL 或本地路径）：跨机器可复现，每次操作再经
+	// registry.Resolve 解析（URL → 缓存 clone 增量刷新）。
+	scaffoldDir := filepath.Join(resolved, "scaffold")
 	data := render.NewData(appName, modulePath)
 	res, err := render.Tree(scaffoldDir, target, data,
 		render.Options{Overwrite: *force, Template: true, Report: printf})
@@ -93,10 +100,11 @@ func cmdList(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	idx, err := registryLoad(*registryDir)
+	idx, regDir, err := registryLoad(*registryDir)
 	if err != nil {
 		return err
 	}
+	*registryDir = regDir
 	fmt.Printf("%s registry (%d modules):\n", idx.Name, len(idx.Items))
 	for _, it := range idx.Items {
 		item, err := idx.Item(*registryDir, it.Name)

@@ -61,10 +61,11 @@ func cmdAdd(args []string) error {
 	if *registryDir == "" {
 		*registryDir = m.Registry // 清单里记的仓库目录兜底
 	}
-	idx, err := registryLoad(*registryDir)
+	idx, regDir, err := registryLoad(*registryDir)
 	if err != nil {
 		return err
 	}
+	*registryDir = regDir
 	item, cleanup, err := idx.ItemAt(*registryDir, name, version)
 	if err != nil {
 		return err
@@ -233,7 +234,14 @@ func appendConfigFragment(appDir, name, fragment string) error {
 	return os.WriteFile(path, []byte(src), 0o644)
 }
 
-// registryLoad 是 registry.Load 的薄封装（init/list 复用）。
-func registryLoad(dir string) (*registry.Index, error) {
-	return registry.Load(dir)
+// registryLoad 解析 registry 参数（git URL → 缓存 clone，本地路径原样）并
+// 加载索引；返回已解析的本地目录（init/add/update/remove/doctor/list 复用，
+// 后续 Item/ItemAt/scaffold 路径一律用它）。
+func registryLoad(dir string) (*registry.Index, string, error) {
+	resolved, err := registry.Resolve(dir)
+	if err != nil {
+		return nil, "", err
+	}
+	idx, err := registry.Load(resolved)
+	return idx, resolved, err
 }

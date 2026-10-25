@@ -55,10 +55,11 @@ func cmdUpdate(args []string) error {
 	if *registryDir == "" {
 		*registryDir = m.Registry
 	}
-	idx, err := registryLoad(*registryDir)
+	idx, regDir, err := registryLoad(*registryDir)
 	if err != nil {
 		return err
 	}
+	*registryDir = regDir
 	item, cleanup, err := idx.ItemAt(*registryDir, name, version)
 	if err != nil {
 		return err

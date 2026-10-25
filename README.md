@@ -27,6 +27,8 @@ shadcn/ui 是参照系：Radix 是库、组件是源码、registry 是分发协�
 # 构建 CLI
 cd cli && go build -o /usr/local/bin/lynx-start .
 
+# registry 两种形态：本仓库目录，或 git URL（自动 clone 到 ~/.cache 并增量刷新）
+export LYNXSTART_REGISTRY=https://github.com/lynx-go/lynx-start.git
 # 生成应用骨架 + 安装模块
 lynx-start init myapp --module github.com/acme/myapp --registry <本仓库目录>
 cd myapp
@@ -110,7 +112,6 @@ Stages/ExtraRoutes）。应用侧 `internal/modules/modules.go` 的 `Installed` 
 
 ## Roadmap
 
-- 远端 registry（本地 git tag 版本 pin 已支持：`add <m>@<ver>` / `update`；远端仓库解析后续接入）
 - 下一批业务模块（SaaS 域设计素材已备，见早期讨论与 ADR-0002 存档）
 
 ---
