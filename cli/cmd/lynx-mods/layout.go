@@ -48,6 +48,22 @@ var canonicalModulesPrefixes = []string{
 	"github.com/lynx-go/lynx-start/modules/",
 }
 
+// canonicalBothPrefixes 返回 canonical 在两系前缀下的形态（canonical 本身
+// 优先；仅当命中已知前缀系时给出另一系）。
+func canonicalBothPrefixes(canonical string) []string {
+	const modsSuffix = "modules/"
+	newer := "github.com/lynx-go/lynx-mods/" + modsSuffix
+	legacy := "github.com/lynx-go/lynx-start/" + modsSuffix
+	switch {
+	case strings.HasPrefix(canonical, newer):
+		return []string{canonical, legacy + strings.TrimPrefix(canonical, newer)}
+	case strings.HasPrefix(canonical, legacy):
+		return []string{canonical, newer + strings.TrimPrefix(canonical, legacy)}
+	default:
+		return []string{canonical}
+	}
+}
+
 // moduleRewriter 构造逐依赖的结构化导入改写（add/update 共用）。
 // canonicals: 已装模块名 → 规范 module path（本模块 + 声明依赖）。
 //
@@ -69,14 +85,20 @@ func moduleRewriter(appModulePath string, canonicals map[string]string) func(rel
 	sort.Strings(names)
 	var rules []rule
 	for _, name := range names {
-		c := canonicals[name]
-		rules = append(rules,
-			rule{[]byte(c + "/genproto/"), []byte(appModulePath + "/genproto/")},
-			rule{[]byte(c + "/domain/" + name), []byte(appModulePath + "/modules/" + name + "/domain")},
-			rule{[]byte(c + "/internal/app/" + name), []byte(appModulePath + "/modules/" + name + "/internal/app")},
-			rule{[]byte(c + "/internal/api/" + name), []byte(appModulePath + "/modules/" + name + "/internal/api")},
-			rule{[]byte(c + "/internal/infra/" + name), []byte(appModulePath + "/modules/" + name + "/internal/infra")},
-		)
+		// 双前缀兼容（ADR-0006）：canonical 可能是新系（lynx-mods/modules/，
+		// 工作区 item）也可能是旧系（lynx-start/modules/，历史 tag item）。
+		// 混代组合（旧 tag 模块源码引用旧系 sibling 路径 + sibling 解析自
+		// 工作区新系 item）下，单一 canonical 会漏改——对每个 canonical
+		// 同时生成两系规则，改写器对前缀系别完全无感。
+		for _, c := range canonicalBothPrefixes(canonicals[name]) {
+			rules = append(rules,
+				rule{[]byte(c + "/genproto/"), []byte(appModulePath + "/genproto/")},
+				rule{[]byte(c + "/domain/" + name), []byte(appModulePath + "/modules/" + name + "/domain")},
+				rule{[]byte(c + "/internal/app/" + name), []byte(appModulePath + "/modules/" + name + "/internal/app")},
+				rule{[]byte(c + "/internal/api/" + name), []byte(appModulePath + "/modules/" + name + "/internal/api")},
+				rule{[]byte(c + "/internal/infra/" + name), []byte(appModulePath + "/modules/" + name + "/internal/infra")},
+			)
+		}
 	}
 	return func(rel string, content []byte) []byte {
 		if !strings.HasSuffix(rel, ".go") && !strings.HasSuffix(rel, ".proto") {

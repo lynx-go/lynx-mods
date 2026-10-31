@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lynx-go/lynx-start"
 	"github.com/lynx-go/lynx-start/compose"
 	"github.com/lynx-go/lynx-start/goosekit"
 	"github.com/uptrace/bun/driver/pgdriver"
