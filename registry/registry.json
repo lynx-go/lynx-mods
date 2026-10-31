@@ -1,0 +1,37 @@
+{
+  "name": "lynx-mods",
+  "items": [
+    {
+      "name": "demo",
+      "path": "modules/demo"
+    },
+    {
+      "name": "identity",
+      "path": "modules/identity"
+    },
+    {
+      "name": "session",
+      "path": "modules/session"
+    },
+    {
+      "name": "access",
+      "path": "modules/access"
+    },
+    {
+      "name": "audit",
+      "path": "modules/audit"
+    },
+    {
+      "name": "notification",
+      "path": "modules/notification"
+    },
+    {
+      "name": "organization",
+      "path": "modules/organization"
+    },
+    {
+      "name": "task",
+      "path": "modules/task"
+    }
+  ]
+}
