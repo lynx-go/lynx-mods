@@ -8,12 +8,12 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/lynx-go/grpcapi v0.4.0
 	github.com/lynx-go/grpcapi/genproto v0.3.0
-	github.com/lynx-go/lynx-start v0.5.2
+	github.com/lynx-go/lynx-start v0.5.10
 	github.com/lynx-go/lynx-start/contrib/bunx v0.1.2
 	github.com/uptrace/bun v1.3.0
 	github.com/uptrace/bun/driver/pgdriver v1.3.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )

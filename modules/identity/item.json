@@ -1,11 +1,11 @@
 {
   "name": "identity",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "身份模块：注册/登录（Argon2id + HS256 JWT）/自助改密，并向应用贡献 Bearer 认证器",
   "modulePath": "github.com/lynx-go/lynx-mods/modules/identity",
   "moduleDependencies": [],
   "goDependencies": [
-    "github.com/lynx-go/lynx-start@v0.5.2",
+    "github.com/lynx-go/lynx-start@v0.5.10",
     "github.com/lynx-go/lynx-start/contrib/bunx@v0.1.2",
     "github.com/lynx-go/grpcapi@v0.4.0"
   ],
