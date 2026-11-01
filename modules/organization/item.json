@@ -2,8 +2,9 @@
   "configFragment": "",
   "description": "组织模块：组织与成员事实（创建者即 owner，owner-only 管理；结构非 RBAC——权限语义归 access），依赖 identity",
   "goDependencies": [
-    "github.com/lynx-go/lynx-start@v0.5.0",
-    "github.com/lynx-go/lynx-start/contrib/bunx@v0.1.0"
+    "github.com/lynx-go/lynx-start@v0.5.2",
+    "github.com/lynx-go/lynx-start/contrib/bunx@v0.1.2",
+    "github.com/lynx-go/grpcapi@v0.4.0"
   ],
   "kernelConstraint": ">=0.5.0",
   "moduleDependencies": [
@@ -18,5 +19,5 @@
     "organization.member.added",
     "organization.member.removed"
   ],
-  "version": "0.2.0"
+  "version": "0.2.1"
 }

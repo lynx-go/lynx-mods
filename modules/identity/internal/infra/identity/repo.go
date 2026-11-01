@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-mods/modules/identity/domain/identity"
+	"github.com/lynx-go/lynx-start/contrib/bunx"
 	"github.com/lynx-go/lynx-start/contrib/bunx/buntx"
+	"github.com/lynx-go/lynx-start/storeerr"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // userModel 是 PO（持久化对象）：bun 标签在此，领域聚合不染 ORM。
@@ -91,10 +92,10 @@ func (r *Repo) UpdatePassword(ctx context.Context, user *identity.User) error {
 	return nil
 }
 
-// isUniqueViolation 识别 Postgres 23505（唯一约束冲突）。
+// isUniqueViolation 识别唯一约束冲突——经 bunx.MapError 归一为
+// storeerr 哨兵（pgdriver 值类型坑由适配层收口）。
 func isUniqueViolation(err error) bool {
-	var pgErr pgdriver.Error
-	return errors.As(err, &pgErr) && pgErr.Field('C') == "23505"
+	return storeerr.IsAlreadyExists(bunx.MapError(err))
 }
 
 func toModel(u *identity.User) userModel {

@@ -11,9 +11,10 @@ import (
 	"github.com/lynx-go/lynx-mods/modules/identity/domain/identity"
 	"github.com/lynx-go/lynx-mods/modules/organization/domain/organization"
 
+	"github.com/lynx-go/lynx-start/contrib/bunx"
 	"github.com/lynx-go/lynx-start/contrib/bunx/buntx"
+	"github.com/lynx-go/lynx-start/storeerr"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // organizationModel 是组织 PO（持久化对象）：bun 标签在此，领域聚合不染 ORM。
@@ -53,8 +54,7 @@ func (r *Repo) Create(ctx context.Context, o *organization.Organization) error {
 	m := toOrganizationModel(o)
 	_, err := buntx.Conn(ctx, r.db).NewInsert().Model(&m).Exec(ctx)
 	if err != nil {
-		var pgErr pgdriver.Error
-		if errors.As(err, &pgErr) && pgErr.Field('C') == "23505" {
+		if storeerr.IsAlreadyExists(bunx.MapError(err)) {
 			return organization.ErrSlugTaken
 		}
 		return err

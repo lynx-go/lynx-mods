@@ -12,10 +12,9 @@ require (
 	github.com/lynx-go/grpcapi v0.4.0
 	github.com/lynx-go/grpcapi/genproto v0.3.0
 	github.com/lynx-go/lynx-mods/modules/identity v0.0.0
-	github.com/lynx-go/lynx-start v0.5.0
-	github.com/lynx-go/lynx-start/contrib/bunx v0.1.0
+	github.com/lynx-go/lynx-start v0.5.2
+	github.com/lynx-go/lynx-start/contrib/bunx v0.1.2
 	github.com/uptrace/bun v1.3.0
-	github.com/uptrace/bun/driver/pgdriver v1.3.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
@@ -52,6 +51,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/uptrace/bun/dialect/pgdialect v1.3.0 // indirect
+	github.com/uptrace/bun/driver/pgdriver v1.3.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
