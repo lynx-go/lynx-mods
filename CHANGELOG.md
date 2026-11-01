@@ -4,6 +4,18 @@
 registry/scaffold）整体迁入。以下历史条目承接 lynx-start 时代的根 CHANGELOG
 （全仓视角）；kernel 谱系的 changelog 留在 lynx-start。条目按发布时间倒序。
 
+## cli v0.3.1 + session v0.2.1（2026-11-01，dogfood 首循环③）
+
+- **cli：安装期自动应用 goDependencies**（ADR-0006 分发器改进提前落地）：
+  add 成功后对 item.json 的 goDependencies 做钉版抬升——首选 `go get`，
+  失败（离线/mise 未 trust）退回纯文本改写 go.mod（go.sum 由后续 tidy
+  收口）。**只升不降**（go get 显式版本会降级，后装模块的旧依赖不得
+  拖垮先装模块已抬的版本；require 缺失/历史路径一律跳过防毒化 tidy）。
+  两轮试点（storeerr/occ）均被「应用地板未抬」绊倒后立项。
+- **session v0.2.1**：吊销状态机换装 occ.Transition + bunx.IfState
+  （transitionRevoke 成为 active→revoked 单一事实源；幂等/计数语义
+  逐字保留）；契约依赖升至 lynx-start v0.5.3 + contrib/bunx v0.1.3。
+
 ## 0.2.0 迁移首发（2026-10-31）
 
 - **module path 换系**：8 个模块 `lynx-go/lynx-start/modules/*` →

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"go/format"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -211,14 +213,125 @@ func cmdAdd(args []string) error {
 	if len(res.Skipped) > 0 && !overwriteAny {
 		fmt.Println("  note: existing files were skipped (local-modification guard); use -o to overwrite")
 	}
+	applied := applyGoDependencies(appDir, item)
 	fmt.Printf(`Next steps (order matters: go mod tidy fails before genproto exists):
   mise install && mise trust   # toolchain (go / buf; skip if already set up)
   mise run generate            # buf generates genproto/
   go mod tidy%s
   mise run db:up && mise run db:migrate
   mise run dev                 # gRPC :9060 / HTTP :8080
-`, goGetHint(item))
+`, applied)
 	return nil
+}
+
+// applyGoDependencies 安装期自动应用 item.json 的 goDependencies（go get
+// 钉版）：模块源码用到新电池版本而应用地板未抬时，编译不再失败。
+// 首选 exec go get；失败（离线/mise 未 trust 等）退回纯文本改写 go.mod
+// 的 require 行（go.sum 由后续 go mod tidy 收口）——始终离线可用
+// （ADR-0006 分发器改进，2026-11-01：storeerr/occ 两轮试点均被地板绊倒后落地）。
+func applyGoDependencies(appDir string, item *registry.Item) string {
+	hint := goGetHint(item)
+	if len(item.GoDependencies) == 0 {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(appDir, "go.mod")); err != nil {
+		return hint
+	}
+	if applyByGoGet(appDir, item.GoDependencies) {
+		fmt.Printf("  deps applied: go get %s\n", strings.Join(item.GoDependencies, " "))
+		return ""
+	}
+	if applyByGoModEdit(appDir, item.GoDependencies) {
+		fmt.Printf("  deps applied (go.mod edit): %s\n", strings.Join(item.GoDependencies, " "))
+		return ""
+	}
+	fmt.Printf("  note: could not apply dependencies, run manually:%s\n", hint)
+	return hint
+}
+
+func applyByGoGet(appDir string, deps []string) bool {
+	// 只升不降：go get 显式版本会降级（后装模块携带旧 goDependencies
+	// 时会拖垮先装模块已抬的版本）——先过滤出需要抬升的条目。
+	wanted := filterUpgrades(readGoModRequires(appDir), deps)
+	if len(wanted) == 0 {
+		return true
+	}
+	for _, dep := range wanted {
+		cmd := exec.Command("go", "get", dep)
+		cmd.Dir = appDir
+		if _, err := cmd.CombinedOutput(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+// readGoModRequires 读 go.mod 的 require 版本表（模块路径 → 去 v 前缀版本）。
+func readGoModRequires(appDir string) map[string]string {
+	out := map[string]string{}
+	raw, err := os.ReadFile(filepath.Join(appDir, "go.mod"))
+	if err != nil {
+		return out
+	}
+	for _, ln := range strings.Split(string(raw), "\n") {
+		f := strings.Fields(ln)
+		if len(f) == 2 && strings.HasPrefix(f[0], "github.com/") && strings.HasPrefix(f[1], "v") {
+			out[f[0]] = strings.TrimPrefix(f[1], "v")
+		}
+	}
+	return out
+}
+
+// filterUpgrades 过滤出需要抬升的依赖（当前缺失或版本更旧）。
+func filterUpgrades(current map[string]string, deps []string) []string {
+	var wanted []string
+	for _, dep := range deps {
+		modPath, version, ok := strings.Cut(dep, "@")
+		if !ok || !strings.HasPrefix(version, "v") {
+			continue
+		}
+		have, exists := current[modPath]
+		if !exists || registry.CompareVersions(strings.TrimPrefix(version, "v"), have) > 0 {
+			wanted = append(wanted, dep)
+		}
+	}
+	return wanted
+}
+
+// applyByGoModEdit 以纯文本方式抬升 go.mod 的 require 版本（仅升不降，
+// MVS 语义）。兜底路径：不依赖 go 命令可用（mise shim 在未 trust 目录
+// 会拒绝执行）。只升不插：require 里不存在的模块路径（含旧 tag 携带的
+// 历史路径如 lynx-start/kernel）一律跳过——插入未知模块会毒化后续 tidy；
+// 新模块路径的依赖应用交给 exec go get 路径或安装提示。
+func applyByGoModEdit(appDir string, deps []string) bool {
+	path := filepath.Join(appDir, "go.mod")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(string(raw), "\n")
+	changed := false
+	for _, dep := range deps {
+		modPath, version, ok := strings.Cut(dep, "@")
+		if !ok || !strings.HasPrefix(version, "v") {
+			continue
+		}
+		re := regexp.MustCompile(`^(\t` + regexp.QuoteMeta(modPath) + ` )v\S+$`)
+		for i, ln := range lines {
+			if m := re.FindStringSubmatch(ln); m != nil {
+				old := strings.Fields(ln)[1]
+				if registry.CompareVersions(strings.TrimPrefix(version, "v"), strings.TrimPrefix(old, "v")) > 0 {
+					lines[i] = m[1] + version
+					changed = true
+				}
+				break
+			}
+		}
+	}
+	if !changed {
+		return true // 已满足（无需改动也算成功）
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644) == nil
 }
 
 // skipModuleFile 排除模块目录里的工程/生成文件（add 与 update 共用）：
