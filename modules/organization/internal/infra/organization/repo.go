@@ -13,19 +13,22 @@ import (
 
 	"github.com/lynx-go/lynx-start/contrib/bunx"
 	"github.com/lynx-go/lynx-start/contrib/bunx/buntx"
+	"github.com/lynx-go/lynx-start/row"
 	"github.com/lynx-go/lynx-start/storeerr"
 	"github.com/uptrace/bun"
 )
 
 // organizationModel 是组织 PO（持久化对象）：bun 标签在此，领域聚合不染 ORM。
+// 审计时间列经 row.Stamps 声明（dogfood 首循环④试点：列名 snake_case
+// 自动同构；domain 构造器持有时间戳——显式规约，非零不覆写）。
 type organizationModel struct {
 	bun.BaseModel `bun:"table:organization_organizations,alias:o"`
 
-	ID        string    `bun:"id,pk"`
-	Name      string    `bun:"name,notnull"`
-	Slug      string    `bun:"slug,notnull,unique"`
-	CreatedAt time.Time `bun:"created_at,notnull"`
-	UpdatedAt time.Time `bun:"updated_at,notnull"`
+	row.Stamps
+
+	ID   string `bun:"id,pk"`
+	Name string `bun:"name,notnull"`
+	Slug string `bun:"slug,notnull,unique"`
 }
 
 // memberModel 是成员事实 PO。user_id 只存 ID 不设外键——契约④：
@@ -191,7 +194,7 @@ func (r *Repo) CountOwners(ctx context.Context, organizationID string) (int, err
 func toOrganizationModel(o *organization.Organization) organizationModel {
 	return organizationModel{
 		ID: o.ID, Name: o.Name, Slug: o.Slug,
-		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
+		Stamps: row.Stamps{CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt},
 	}
 }
 
