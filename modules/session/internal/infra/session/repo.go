@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/lynx-go/lynx-mods/modules/session/domain/session"
+	"github.com/lynx-go/lynx-start/contrib/bunx"
 	"github.com/lynx-go/lynx-start/contrib/bunx/buntx"
+	"github.com/lynx-go/lynx-start/occ"
 	"github.com/uptrace/bun"
 )
 
@@ -36,6 +38,11 @@ type Repo struct {
 
 // NewRepository 构造仓储（Assemble 调用）。
 func NewRepository(db *bun.DB) *Repo { return &Repo{db: db} }
+
+// transitionRevoke 是会话状态机的唯一吊销迁移声明（occ.Transition，
+// dogfood 首循环③）：active → revoked。起点守卫由 bunx.IfState 编译，
+// 状态机合法性单一事实源——未来增加 paused 等状态只改这里。
+var transitionRevoke = occ.Transition{From: []string{session.StatusActive}, To: session.StatusRevoked}
 
 var _ session.Repository = (*Repo)(nil)
 
@@ -91,12 +98,11 @@ func (r *Repo) Revoke(ctx context.Context, id, reason string, at time.Time) erro
 
 // RevokeByUser 吊销用户全部活跃会话，返回吊销行数。
 func (r *Repo) RevokeByUser(ctx context.Context, userID, reason string, at time.Time) (int, error) {
-	res, err := buntx.Conn(ctx, r.db).NewUpdate().
-		Model((*sessionModel)(nil)).
-		Set("status = ?", session.StatusRevoked).
+	res, err := bunx.IfState(buntx.Conn(ctx, r.db).NewUpdate().
+		Model((*sessionModel)(nil)), "status", transitionRevoke).
 		Set("revoked_at = ?", at).
 		Set("revoke_reason = ?", reason).
-		Where("user_id = ? AND status = ?", userID, session.StatusActive).
+		Where("user_id = ?", userID).
 		Exec(ctx)
 	if err != nil {
 		return 0, err
