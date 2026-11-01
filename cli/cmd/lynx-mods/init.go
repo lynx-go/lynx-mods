@@ -20,8 +20,8 @@ const goDirective = "1.26.8"
 // grpcapi openapi 免费挂载）。升级 kernel / grpcapi 破坏 scaffold 模板时
 // 同步抬这里——应用 tidy 走 MVS 取 max，地板保证新 init 的应用直接可编译。
 const (
-	lynxStartFloor = "v0.5.0" // lynx-start 根 module（契约 + compose/chain）
-	bunxFloor      = "v0.1.0" // lynx-start/contrib/bunx（scaffold 装配直接使用）
+	lynxStartFloor = "v0.5.2" // lynx-start 根 module（契约 + compose/chain + storeerr）
+	bunxFloor      = "v0.1.2" // lynx-start/contrib/bunx（scaffold 装配 + MapError）
 	grpcapiFloor   = "v0.4.0"
 )
 
